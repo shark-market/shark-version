@@ -1,0 +1,8 @@
+<svg width="280" height="60" viewBox="0 0 280 60" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Shark Market">
+  <rect width="280" height="60" fill="#ffffff"/>
+  <circle cx="30" cy="30" r="22" fill="#111827"/>
+  <path d="M14 32 C20 22 26 22 32 30 C38 38 44 38 50 28" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30 21 L35 30 L25 30 Z" fill="#ffffff"/>
+  <text x="66" y="38" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700" fill="#111827" letter-spacing="1">SHARK</text>
+  <text x="166" y="38" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700" fill="#9ca3af" letter-spacing="1">MKT</text>
+</svg>

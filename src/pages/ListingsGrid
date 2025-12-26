@@ -1,0 +1,8 @@
+{items.map((item) => (
+  <ListingCard
+    key={item.id}
+    business={item}
+    isAuthenticated={isAuthenticated}
+    onViewDetails={() => console.log(item.id)}
+  />
+))}
