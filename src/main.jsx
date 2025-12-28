@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
+import { HashRouter } from "react-router-dom";
 import App from "./App";
 import "./index.css";
 import { AuthProvider } from "./context/AuthContext";
@@ -8,12 +8,12 @@ import { CurrencyProvider } from "./context/CurrencyContext";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <BrowserRouter>
+    <HashRouter>
       <CurrencyProvider>
         <AuthProvider>
           <App />
         </AuthProvider>
       </CurrencyProvider>
-    </BrowserRouter>
+    </HashRouter>
   </React.StrictMode>
 );
