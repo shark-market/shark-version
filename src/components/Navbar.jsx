@@ -8,6 +8,7 @@ const NAV_TEXT = {
     listings: "Browse Listings",
     pricing: "Pricing",
     partner: "Find a Partner",
+    subscriptions: "Subscriptions",
     login: "Log in",
     signup: "Sign Up",
     account: "My Account",
@@ -21,6 +22,7 @@ const NAV_TEXT = {
     listings: "تصفح العروض",
     pricing: "الأسعار",
     partner: "ابحث عن شريك",
+    subscriptions: "الاشتراكات",
     login: "تسجيل الدخول",
     signup: "إنشاء حساب",
     account: "حسابي",
@@ -112,6 +114,9 @@ export default function Navbar({
         </button>
         <button type="button" onClick={() => handleNavigate("/pricing")}>
           {text.pricing}
+        </button>
+        <button type="button" onClick={() => handleNavigate("/subscriptions")}>
+          {text.subscriptions}
         </button>
       </div>
 
