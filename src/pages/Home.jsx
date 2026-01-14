@@ -7,10 +7,15 @@ import Footer from "../components/Footer";
 import { useCurrency } from "../context/CurrencyContext";
 import UpgradeModal from "../components/UpgradeModal";
 import { PLAN_ACCESS } from "../data/plans";
+import { BLOG_CATEGORIES, BLOG_POSTS } from "../data/blogPosts";
 
 import { businesses } from "../data/mockdata";
 import { getCustomListings } from "../data/listingsStore";
 import { TEXT } from "../data/translations";
+
+const LATEST_BLOG_POSTS = [...BLOG_POSTS]
+  .sort((a, b) => new Date(b.date) - new Date(a.date))
+  .slice(0, 4);
 
 const HERO_CATEGORIES = [
   { value: "all", label: { EN: "All", AR: "الكل" } },
@@ -191,6 +196,7 @@ export default function Home({
   const [profitMax, setProfitMax] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [customListings, setCustomListings] = useState(() => getCustomListings());
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -328,6 +334,16 @@ export default function Home({
     return listings;
   }, [filteredListings, sortBy]);
 
+  const blogCategoryLabels = useMemo(() => {
+    const labels = {};
+    BLOG_CATEGORIES.forEach((category) => {
+      labels[category.value] = category.label[language] || category.label.EN;
+    });
+    return labels;
+  }, [language]);
+
+  const latestBlogPosts = LATEST_BLOG_POSTS;
+
   const handleHeroCategory = (category) => {
     setHeroCategory(category);
     if (category === "all") {
@@ -415,6 +431,246 @@ export default function Home({
     setShowUpgradeModal(true);
   };
 
+  const rangeFromLabel = isArabic ? "من" : "From";
+  const rangeToLabel = isArabic ? "حتى" : "Up to";
+  const resetLabel = isArabic ? "إعادة ضبط" : "Reset";
+  const applyLabel = isArabic ? "تطبيق" : "Apply";
+
+  const getOptionLabel = (options, value) => {
+    const match = options.find((option) => option.value === value);
+    if (!match) return value;
+    return match.label?.[language] || match.label?.EN || match.label || value;
+  };
+
+  const buildRangeLabel = (label, minValue, maxValue) => {
+    if (!minValue && !maxValue) return "";
+    if (minValue && maxValue) return `${label}: ${minValue}-${maxValue}`;
+    if (minValue) return `${label}: ${rangeFromLabel} ${minValue}`;
+    return `${label}: ${rangeToLabel} ${maxValue}`;
+  };
+
+  const activeFilters = useMemo(() => {
+    const chips = [];
+    const addChip = (key, label, onRemove) => {
+      if (!label) return;
+      chips.push({ key, label, onRemove });
+    };
+
+    selectedCategories.forEach((value) => {
+      const label = categoryLabels?.[value] || value;
+      addChip(`category-${value}`, label, () =>
+        setSelectedCategories((prev) => prev.filter((item) => item !== value))
+      );
+    });
+
+    if (selectedDealType !== "all") {
+      addChip(
+        "deal-type",
+        `${text.saleType}: ${getOptionLabel(DEAL_TYPES, selectedDealType)}`,
+        () => setSelectedDealType("all")
+      );
+    }
+
+    if (selectedRegion !== "all") {
+      addChip(
+        "region",
+        `${text.country}: ${getOptionLabel(REGION_OPTIONS, selectedRegion)}`,
+        () => setSelectedRegion("all")
+      );
+    }
+
+    if (selectedStage !== "all") {
+      addChip(
+        "stage",
+        `${text.projectStage}: ${getOptionLabel(STAGE_OPTIONS, selectedStage)}`,
+        () => setSelectedStage("all")
+      );
+    }
+
+    if (selectedPartnerRole !== "all") {
+      addChip(
+        "partner-role",
+        `${text.partnerRole}: ${getOptionLabel(PARTNER_ROLE_OPTIONS, selectedPartnerRole)}`,
+        () => setSelectedPartnerRole("all")
+      );
+    }
+
+    if (selectedCommitment !== "all") {
+      addChip(
+        "commitment",
+        `${text.commitment}: ${getOptionLabel(COMMITMENT_OPTIONS, selectedCommitment)}`,
+        () => setSelectedCommitment("all")
+      );
+    }
+
+    selectedMonetization.forEach((value) => {
+      addChip(
+        `monetization-${value}`,
+        `${text.monetization}: ${getOptionLabel(MONETIZATION_OPTIONS, value)}`,
+        () =>
+          setSelectedMonetization((prev) =>
+            prev.filter((item) => item !== value)
+          )
+      );
+    });
+
+    const priceLabel = buildRangeLabel(
+      `${text.priceRange} (${currencyLabel})`,
+      priceMin,
+      priceMax
+    );
+    if (priceLabel) {
+      addChip("price", priceLabel, () => {
+        setPriceMin("");
+        setPriceMax("");
+      });
+    }
+
+    const revenueLabel = buildRangeLabel(
+      `${text.monthlyRevenue} (${currencyLabel})`,
+      revenueMin,
+      revenueMax
+    );
+    if (revenueLabel) {
+      addChip("revenue", revenueLabel, () => {
+        setRevenueMin("");
+        setRevenueMax("");
+      });
+    }
+
+    const profitLabel = buildRangeLabel(
+      `${text.monthlyProfit} (${currencyLabel})`,
+      profitMin,
+      profitMax
+    );
+    if (profitLabel) {
+      addChip("profit", profitLabel, () => {
+        setProfitMin("");
+        setProfitMax("");
+      });
+    }
+
+    const equityLabel = buildRangeLabel(text.equityRange, equityMin, equityMax);
+    if (equityLabel) {
+      addChip("equity", equityLabel, () => {
+        setEquityMin("");
+        setEquityMax("");
+      });
+    }
+
+    if (verifiedOnly) {
+      addChip("verified", text.verifiedOnly, () => setVerifiedOnly(false));
+    }
+
+    return chips;
+  }, [
+    selectedCategories,
+    selectedDealType,
+    selectedRegion,
+    selectedStage,
+    selectedPartnerRole,
+    selectedCommitment,
+    selectedMonetization,
+    priceMin,
+    priceMax,
+    revenueMin,
+    revenueMax,
+    profitMin,
+    profitMax,
+    equityMin,
+    equityMax,
+    verifiedOnly,
+    categoryLabels,
+    currencyLabel,
+    language,
+    text,
+    rangeFromLabel,
+    rangeToLabel,
+  ]);
+
+  const filtersProps = {
+    language,
+    title: text.filtersTitle,
+    clearLabel: text.clearAll,
+    assetTypeLabel: text.assetType,
+    assetGroups: ASSET_GROUPS.map((group) => ({
+      value: group.value,
+      label: group.label[language] || group.label.EN,
+      options: group.options.map((option) => ({
+        value: option.value,
+        label: option.label[language] || option.label.EN,
+      })),
+    })),
+    dealTypeLabel: text.saleType,
+    monetizationLabel: text.monetization,
+    priceRangeLabel: `${text.priceRange} (${currencyLabel})`,
+    revenueLabel: text.monthlyRevenue,
+    profitLabel: text.monthlyProfit,
+    stageLabel: text.projectStage,
+    roleLabel: text.partnerRole,
+    equityLabel: text.equityRange,
+    commitmentLabel: text.commitment,
+    verifiedLabel: text.verifiedOnly,
+    countryLabel: text.country,
+    selectedCategories,
+    onToggleCategory: handleToggleCategory,
+    dealTypes: DEAL_TYPES.map((type) => ({
+      value: type.value,
+      label: type.label[language] || type.label.EN,
+    })),
+    selectedDealType,
+    onDealTypeChange: setSelectedDealType,
+    minPrice: priceMin,
+    maxPrice: priceMax,
+    onMinPriceChange: setPriceMin,
+    onMaxPriceChange: setPriceMax,
+    minRevenue: revenueMin,
+    maxRevenue: revenueMax,
+    onMinRevenueChange: setRevenueMin,
+    onMaxRevenueChange: setRevenueMax,
+    minProfit: profitMin,
+    maxProfit: profitMax,
+    onMinProfitChange: setProfitMin,
+    onMaxProfitChange: setProfitMax,
+    monetizationOptions: MONETIZATION_OPTIONS.map((option) => ({
+      value: option.value,
+      label: option.label[language] || option.label.EN,
+    })),
+    selectedMonetization,
+    onToggleMonetization: handleToggleMonetization,
+    regions: REGION_OPTIONS.map((region) => ({
+      value: region.value,
+      label: region.label[language] || region.label.EN,
+    })),
+    selectedRegion,
+    onRegionChange: setSelectedRegion,
+    stages: STAGE_OPTIONS.map((stage) => ({
+      value: stage.value,
+      label: stage.label[language] || stage.label.EN,
+    })),
+    selectedStage,
+    onStageChange: setSelectedStage,
+    roleOptions: PARTNER_ROLE_OPTIONS.map((roleOption) => ({
+      value: roleOption.value,
+      label: roleOption.label[language] || roleOption.label.EN,
+    })),
+    selectedRole: selectedPartnerRole,
+    onRoleChange: setSelectedPartnerRole,
+    equityMin,
+    equityMax,
+    onEquityMinChange: setEquityMin,
+    onEquityMaxChange: setEquityMax,
+    commitmentOptions: COMMITMENT_OPTIONS.map((option) => ({
+      value: option.value,
+      label: option.label[language] || option.label.EN,
+    })),
+    selectedCommitment,
+    onCommitmentChange: setSelectedCommitment,
+    verifiedOnly,
+    onVerifiedChange: setVerifiedOnly,
+    onClear: handleClear,
+  };
+
   return (
     <div className="page" id="top">
       <Hero
@@ -431,89 +687,59 @@ export default function Home({
         onCategoryChange={handleHeroCategory}
       />
 
+      <section className="home-blog-section" id="home-blog">
+        <div className="container">
+          <div className="home-blog-header">
+            <div>
+              <h2>{text.homeBlogTitle}</h2>
+              <p className="muted">{text.homeBlogSubtitle}</p>
+            </div>
+            <button
+              className="btn btn-dark"
+              type="button"
+              onClick={() => navigate("/blog")}
+            >
+              {text.homeBlogCta}
+            </button>
+          </div>
+          <div className="blog-grid">
+            {latestBlogPosts.map((post) => (
+              <article className="blog-card" key={`home-${post.id}`}>
+                <div className="blog-media">
+                  <img src={post.coverImage} alt={post.title?.[language] || post.title?.EN} />
+                </div>
+                <div className="blog-body">
+                  <span className="pill">{blogCategoryLabels[post.category]}</span>
+                  <h3>{post.title?.[language] || post.title?.EN}</h3>
+                  <p className="muted">{post.excerpt?.[language] || post.excerpt?.EN}</p>
+                  <div className="blog-meta">
+                    <span>
+                      {new Date(post.date).toLocaleDateString(
+                        language === "AR" ? "ar-SA" : "en-US",
+                        {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        }
+                      )}
+                    </span>
+                  </div>
+                  <button
+                    className="link-button"
+                    type="button"
+                    onClick={() => navigate("/blog")}
+                  >
+                    {text.blogReadMore}
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <main className="container layout">
-        <Filters
-          language={language}
-          title={text.filtersTitle}
-          clearLabel={text.clearAll}
-          assetTypeLabel={text.assetType}
-          assetGroups={ASSET_GROUPS.map((group) => ({
-            value: group.value,
-            label: group.label[language] || group.label.EN,
-            options: group.options.map((option) => ({
-              value: option.value,
-              label: option.label[language] || option.label.EN,
-            })),
-          }))}
-          dealTypeLabel={text.saleType}
-          monetizationLabel={text.monetization}
-          priceRangeLabel={`${text.priceRange} (${currencyLabel})`}
-          revenueLabel={text.monthlyRevenue}
-          profitLabel={text.monthlyProfit}
-          stageLabel={text.projectStage}
-          roleLabel={text.partnerRole}
-          equityLabel={text.equityRange}
-          commitmentLabel={text.commitment}
-          verifiedLabel={text.verifiedOnly}
-          countryLabel={text.country}
-          selectedCategories={selectedCategories}
-          onToggleCategory={handleToggleCategory}
-          dealTypes={DEAL_TYPES.map((type) => ({
-            value: type.value,
-            label: type.label[language] || type.label.EN,
-          }))}
-          selectedDealType={selectedDealType}
-          onDealTypeChange={setSelectedDealType}
-          minPrice={priceMin}
-          maxPrice={priceMax}
-          onMinPriceChange={setPriceMin}
-          onMaxPriceChange={setPriceMax}
-          minRevenue={revenueMin}
-          maxRevenue={revenueMax}
-          onMinRevenueChange={setRevenueMin}
-          onMaxRevenueChange={setRevenueMax}
-          minProfit={profitMin}
-          maxProfit={profitMax}
-          onMinProfitChange={setProfitMin}
-          onMaxProfitChange={setProfitMax}
-          monetizationOptions={MONETIZATION_OPTIONS.map((option) => ({
-            value: option.value,
-            label: option.label[language] || option.label.EN,
-          }))}
-          selectedMonetization={selectedMonetization}
-          onToggleMonetization={handleToggleMonetization}
-          regions={REGION_OPTIONS.map((region) => ({
-            value: region.value,
-            label: region.label[language] || region.label.EN,
-          }))}
-          selectedRegion={selectedRegion}
-          onRegionChange={setSelectedRegion}
-          stages={STAGE_OPTIONS.map((stage) => ({
-            value: stage.value,
-            label: stage.label[language] || stage.label.EN,
-          }))}
-          selectedStage={selectedStage}
-          onStageChange={setSelectedStage}
-          roleOptions={PARTNER_ROLE_OPTIONS.map((roleOption) => ({
-            value: roleOption.value,
-            label: roleOption.label[language] || roleOption.label.EN,
-          }))}
-          selectedRole={selectedPartnerRole}
-          onRoleChange={setSelectedPartnerRole}
-          equityMin={equityMin}
-          equityMax={equityMax}
-          onEquityMinChange={setEquityMin}
-          onEquityMaxChange={setEquityMax}
-          commitmentOptions={COMMITMENT_OPTIONS.map((option) => ({
-            value: option.value,
-            label: option.label[language] || option.label.EN,
-          }))}
-          selectedCommitment={selectedCommitment}
-          onCommitmentChange={setSelectedCommitment}
-          verifiedOnly={verifiedOnly}
-          onVerifiedChange={setVerifiedOnly}
-          onClear={handleClear}
-        />
+        <Filters {...filtersProps} />
 
         <ListingsGrid
           items={sortedListings}
@@ -527,8 +753,54 @@ export default function Home({
           onRequireAuth={onRequireAuth}
           onRequireSubscription={handleRequireSubscription}
           onViewDetails={(id) => navigate(`/listing/${id}`)}
+          onToggleFilters={() => setMobileFiltersOpen(true)}
+          activeFilters={activeFilters}
+          onClearFilters={handleClear}
+          clearFiltersLabel={text.clearAll}
         />
       </main>
+
+      {mobileFiltersOpen ? (
+        <button
+          className="filters-sheet-backdrop"
+          type="button"
+          aria-label={isArabic ? "إغلاق الفلاتر" : "Close filters"}
+          onClick={() => setMobileFiltersOpen(false)}
+        />
+      ) : null}
+      <section
+        className={`filters-sheet ${mobileFiltersOpen ? "open" : ""}`}
+        role="dialog"
+        aria-modal="true"
+        aria-hidden={!mobileFiltersOpen}
+      >
+        <div className="filters-sheet-header">
+          <h3>{text.filtersTitle}</h3>
+          <button
+            className="filters-sheet-close"
+            type="button"
+            aria-label={isArabic ? "إغلاق" : "Close"}
+            onClick={() => setMobileFiltersOpen(false)}
+          >
+            X
+          </button>
+        </div>
+        <div className="filters-sheet-body">
+          <Filters {...filtersProps} />
+        </div>
+        <div className="filters-sheet-footer">
+          <button className="btn btn-ghost" type="button" onClick={handleClear}>
+            {resetLabel}
+          </button>
+          <button
+            className="btn btn-dark"
+            type="button"
+            onClick={() => setMobileFiltersOpen(false)}
+          >
+            {applyLabel}
+          </button>
+        </div>
+      </section>
 
       <section className="why-section" id="why">
         <div className="container">

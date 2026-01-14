@@ -8,7 +8,6 @@ const NAV_TEXT = {
     listings: "Browse Listings",
     pricing: "Pricing",
     partner: "Find a Partner",
-    subscriptions: "Subscriptions",
     login: "Log in",
     signup: "Sign Up",
     account: "My Account",
@@ -16,13 +15,18 @@ const NAV_TEXT = {
     myListings: "My Listings",
     blog: "Blog",
     contact: "Contact",
+    menu: "Menu",
+    close: "Close",
+    language: "Language",
+    currency: "Currency",
+    manageSubscriptions: "Manage Plan",
+    logout: "Log out",
   },
   AR: {
     home: "الرئيسية",
     listings: "تصفح العروض",
     pricing: "الأسعار",
     partner: "ابحث عن شريك",
-    subscriptions: "الاشتراكات",
     login: "تسجيل الدخول",
     signup: "إنشاء حساب",
     account: "حسابي",
@@ -30,6 +34,12 @@ const NAV_TEXT = {
     myListings: "إعلاناتي",
     blog: "المدونة",
     contact: "تواصل معنا",
+    menu: "القائمة",
+    close: "إغلاق",
+    language: "اللغة",
+    currency: "العملة",
+    manageSubscriptions: "إدارة الخطة",
+    logout: "تسجيل الخروج",
   },
 };
 
@@ -44,6 +54,7 @@ export default function Navbar({
   const navigate = useNavigate();
   const { currency, currencies, setCurrency } = useCurrency();
   const [open, setOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -53,6 +64,11 @@ export default function Navbar({
       return;
     }
     navigate(path);
+  };
+
+  const handleDrawerNavigate = (path, scrollTo) => {
+    setMobileOpen(false);
+    handleNavigate(path, scrollTo);
   };
 
   useEffect(() => {
@@ -99,6 +115,18 @@ export default function Navbar({
         <img className="logo-img" src="/sharkmkt-logo.png" alt="Shark Market" />
       </div>
 
+      <button
+        className="nav-toggle"
+        type="button"
+        aria-label={text.menu}
+        aria-expanded={mobileOpen}
+        onClick={() => setMobileOpen((prev) => !prev)}
+      >
+        <span className="nav-toggle-bar" />
+        <span className="nav-toggle-bar" />
+        <span className="nav-toggle-bar" />
+      </button>
+
       <div className="nav-links">
         <button type="button" onClick={() => handleNavigate("/", "#home")}>
           {text.home}
@@ -115,8 +143,8 @@ export default function Navbar({
         <button type="button" onClick={() => handleNavigate("/pricing")}>
           {text.pricing}
         </button>
-        <button type="button" onClick={() => handleNavigate("/subscriptions")}>
-          {text.subscriptions}
+        <button type="button" onClick={() => handleNavigate("/blog")}>
+          {text.blog}
         </button>
       </div>
 
@@ -182,11 +210,9 @@ export default function Navbar({
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleNavigate("/subscriptions")}
+                  onClick={() => handleNavigate("/pricing")}
                 >
-                  {language === "AR"
-                    ? "إدارة الاشتراكات"
-                    : "Manage Subscriptions"}
+                  {text.manageSubscriptions}
                 </button>
                 <button type="button" onClick={() => handleNavigate("/my-listings")}>
                   {text.myListings}
@@ -226,6 +252,143 @@ export default function Navbar({
           </>
         )}
       </div>
+
+      {mobileOpen ? (
+        <button
+          className="nav-drawer-backdrop"
+          type="button"
+          aria-label={text.close}
+          onClick={() => setMobileOpen(false)}
+        />
+      ) : null}
+      <aside className={`nav-drawer ${mobileOpen ? "open" : ""}`}>
+        <div className="nav-drawer-header">
+          <span className="nav-drawer-title">{text.menu}</span>
+          <button
+            className="nav-drawer-close"
+            type="button"
+            aria-label={text.close}
+            onClick={() => setMobileOpen(false)}
+          >
+            X
+          </button>
+        </div>
+        <div className="nav-drawer-links">
+          <button type="button" onClick={() => handleDrawerNavigate("/", "#home")}>
+            {text.home}
+          </button>
+          <button
+            type="button"
+            onClick={() => handleDrawerNavigate("/", "#listings")}
+          >
+            {text.listings}
+          </button>
+          <button type="button" onClick={() => handleDrawerNavigate("/partner")}>
+            {text.partner}
+          </button>
+          <button type="button" onClick={() => handleDrawerNavigate("/pricing")}>
+            {text.pricing}
+          </button>
+          <button type="button" onClick={() => handleDrawerNavigate("/blog")}>
+            {text.blog}
+          </button>
+        </div>
+        <div className="nav-drawer-section">
+          <span className="nav-drawer-label">{text.language}</span>
+          <div className="language-toggle">
+            <button
+              className={`pill-button ${language === "EN" ? "active" : ""}`}
+              type="button"
+              onClick={() => onLanguageChange?.("EN")}
+            >
+              EN
+            </button>
+            <button
+              className={`pill-button ${language === "AR" ? "active" : ""}`}
+              type="button"
+              onClick={() => onLanguageChange?.("AR")}
+            >
+              AR
+            </button>
+          </div>
+        </div>
+        <div className="nav-drawer-section">
+          <span className="nav-drawer-label">{text.currency}</span>
+          <div className="currency-switcher">
+            <select
+              value={currency}
+              onChange={(event) => setCurrency(event.target.value)}
+              aria-label={
+                language === "AR" ? "تغيير العملة" : "Change currency"
+              }
+            >
+              {Object.entries(currencies).map(([code, meta]) => (
+                <option key={code} value={code}>
+                  {meta.flag} {code}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        {user ? (
+          <div className="nav-drawer-section">
+            <span className="nav-drawer-label">{text.account}</span>
+            <div className="nav-drawer-links">
+              <button type="button" onClick={() => handleDrawerNavigate("/account")}>
+                {text.account}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDrawerNavigate("/pricing")}
+              >
+                {text.manageSubscriptions}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDrawerNavigate("/my-listings")}
+              >
+                {text.myListings}
+              </button>
+              <button type="button" onClick={() => handleDrawerNavigate("/inbox")}>
+                {text.inbox}
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  setMobileOpen(false);
+                  onLogout?.();
+                  navigate("/auth", { state: { mode: "login" }, replace: true });
+                }}
+              >
+                {text.logout}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="nav-drawer-section nav-drawer-auth">
+            <button
+              className="btn btn-ghost"
+              type="button"
+              onClick={() => {
+                setMobileOpen(false);
+                navigate("/auth", { state: { mode: "login" } });
+              }}
+            >
+              {text.login}
+            </button>
+            <button
+              className="btn btn-dark"
+              type="button"
+              onClick={() => {
+                setMobileOpen(false);
+                navigate("/auth", { state: { mode: "signup" } });
+              }}
+            >
+              {text.signup}
+            </button>
+          </div>
+        )}
+      </aside>
     </nav>
   );
 }

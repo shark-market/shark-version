@@ -13,7 +13,12 @@ export default function ListingsGrid({
   onRequireSubscription,
   onViewDetails,
   onToggleFilters,
+  activeFilters = [],
+  onClearFilters,
+  clearFiltersLabel,
 }) {
+  const hasActiveFilters = activeFilters.length > 0;
+
   return (
     <section className="listings" id="listings">
       <div className="listings-header">
@@ -24,7 +29,7 @@ export default function ListingsGrid({
         <div className="listings-sort">
           {onToggleFilters ? (
             <button
-              className="btn btn-ghost"
+              className="btn btn-ghost filters-toggle"
               type="button"
               onClick={onToggleFilters}
             >
@@ -52,6 +57,36 @@ export default function ListingsGrid({
           </select>
         </div>
       </div>
+
+      {hasActiveFilters ? (
+        <div className="listings-chips">
+          {onClearFilters ? (
+            <button
+              className="filter-chip filter-chip-clear"
+              type="button"
+              onClick={onClearFilters}
+            >
+              {clearFiltersLabel || (language === "AR" ? "مسح الكل" : "Clear All")}
+            </button>
+          ) : null}
+          {activeFilters.map((chip) => (
+            <button
+              key={chip.key}
+              className="filter-chip"
+              type="button"
+              onClick={chip.onRemove}
+              aria-label={
+                language === "AR" ? `إزالة ${chip.label}` : `Remove ${chip.label}`
+              }
+            >
+              <span>{chip.label}</span>
+              <span className="filter-chip-icon" aria-hidden="true">
+                x
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       <div className="listings-grid">
         {items.map((item) => (

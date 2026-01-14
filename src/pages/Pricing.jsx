@@ -75,7 +75,7 @@ export default function Pricing({ language = "EN" }) {
               <div className="compare-row header">
                 <span />
                 <span>{language === "AR" ? "مجاني" : "Free"}</span>
-                <span>{language === "AR" ? "بلس" : "Plus"}</span>
+                <span>{language === "AR" ? "أساسي" : "Basic"}</span>
                 <span>{language === "AR" ? "برو" : "Pro"}</span>
               </div>
               {[

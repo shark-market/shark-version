@@ -74,63 +74,67 @@ export default function Filters({
         </div>
       </div>
 
-      <div className="filters-section">
-        <div className="filters-title">
+      <details className="filters-section" open>
+        <summary className="filters-title">
           <span>{assetTypeLabel}</span>
           <span className="chevron">v</span>
+        </summary>
+        <div className="filters-content">
+          {assetGroups.length > 0
+            ? assetGroups.map((group) => (
+                <div className="filters-group" key={group.value || group.label}>
+                  <span className="filters-group-label">{group.label}</span>
+                  {group.options?.map((option) => (
+                    <label className="checkbox-row" key={option.value}>
+                      <input
+                        type="checkbox"
+                        checked={selectedCategories.includes(option.value)}
+                        onChange={() => onToggleCategory?.(option.value)}
+                      />
+                      <span>{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+              ))
+            : categories.map((category) => (
+                <label className="checkbox-row" key={category.value}>
+                  <input
+                    type="checkbox"
+                    checked={selectedCategories.includes(category.value)}
+                    onChange={() => onToggleCategory?.(category.value)}
+                  />
+                  <span>{category.label}</span>
+                </label>
+              ))}
         </div>
-        {assetGroups.length > 0
-          ? assetGroups.map((group) => (
-              <div className="filters-group" key={group.value || group.label}>
-                <span className="filters-group-label">{group.label}</span>
-                {group.options?.map((option) => (
-                  <label className="checkbox-row" key={option.value}>
-                    <input
-                      type="checkbox"
-                      checked={selectedCategories.includes(option.value)}
-                      onChange={() => onToggleCategory?.(option.value)}
-                    />
-                    <span>{option.label}</span>
-                  </label>
-                ))}
-              </div>
-            ))
-          : categories.map((category) => (
-              <label className="checkbox-row" key={category.value}>
-                <input
-                  type="checkbox"
-                  checked={selectedCategories.includes(category.value)}
-                  onChange={() => onToggleCategory?.(category.value)}
-                />
-                <span>{category.label}</span>
-              </label>
-            ))}
-      </div>
+      </details>
 
-      <div className="filters-section">
-        <div className="filters-title">
+      <details className="filters-section" open>
+        <summary className="filters-title">
           <span>{dealTypeLabel}</span>
           <span className="chevron">v</span>
+        </summary>
+        <div className="filters-content">
+          {dealTypes.map((type) => (
+            <label className="checkbox-row" key={type.value}>
+              <input
+                type="radio"
+                name="dealType"
+                checked={selectedDealType === type.value}
+                onChange={() => onDealTypeChange?.(type.value)}
+              />
+              <span>{type.label}</span>
+            </label>
+          ))}
         </div>
-        {dealTypes.map((type) => (
-          <label className="checkbox-row" key={type.value}>
-            <input
-              type="radio"
-              name="dealType"
-              checked={selectedDealType === type.value}
-              onChange={() => onDealTypeChange?.(type.value)}
-            />
-            <span>{type.label}</span>
-          </label>
-        ))}
-      </div>
+      </details>
 
-      <div className="filters-section">
-        <div className="filters-title">
+      <details className="filters-section" open>
+        <summary className="filters-title">
           <span>{priceRangeLabel}</span>
           <span className="chevron">v</span>
-        </div>
-        <div className="range-inputs">
+        </summary>
+        <div className="filters-content range-inputs">
           <input
             type="text"
             placeholder={language === "AR" ? "من" : "From"}
@@ -144,14 +148,14 @@ export default function Filters({
             onChange={(event) => onMaxPriceChange?.(event.target.value)}
           />
         </div>
-      </div>
+      </details>
 
-      <div className="filters-section">
-        <div className="filters-title">
+      <details className="filters-section" open>
+        <summary className="filters-title">
           <span>{revenueLabel}</span>
           <span className="chevron">v</span>
-        </div>
-        <div className="range-inputs">
+        </summary>
+        <div className="filters-content range-inputs">
           <input
             type="text"
             placeholder={language === "AR" ? "من" : "From"}
@@ -165,14 +169,14 @@ export default function Filters({
             onChange={(event) => onMaxRevenueChange?.(event.target.value)}
           />
         </div>
-      </div>
+      </details>
 
-      <div className="filters-section">
-        <div className="filters-title">
+      <details className="filters-section" open>
+        <summary className="filters-title">
           <span>{profitLabel}</span>
           <span className="chevron">v</span>
-        </div>
-        <div className="range-inputs">
+        </summary>
+        <div className="filters-content range-inputs">
           <input
             type="text"
             placeholder={language === "AR" ? "من" : "From"}
@@ -186,85 +190,93 @@ export default function Filters({
             onChange={(event) => onMaxProfitChange?.(event.target.value)}
           />
         </div>
-      </div>
+      </details>
 
-      <div className="filters-section">
-        <div className="filters-title">
+      <details className="filters-section" open>
+        <summary className="filters-title">
           <span>{countryLabel}</span>
           <span className="chevron">v</span>
+        </summary>
+        <div className="filters-content">
+          {regions.map((region) => (
+            <label className="checkbox-row" key={region.value}>
+              <input
+                type="radio"
+                name="region"
+                checked={selectedRegion === region.value}
+                onChange={() => onRegionChange?.(region.value)}
+              />
+              <span>{region.label}</span>
+            </label>
+          ))}
         </div>
-        {regions.map((region) => (
-          <label className="checkbox-row" key={region.value}>
-            <input
-              type="radio"
-              name="region"
-              checked={selectedRegion === region.value}
-              onChange={() => onRegionChange?.(region.value)}
-            />
-            <span>{region.label}</span>
-          </label>
-        ))}
-      </div>
+      </details>
 
-      <div className="filters-section">
-        <div className="filters-title">
+      <details className="filters-section" open>
+        <summary className="filters-title">
           <span>{monetizationLabel}</span>
           <span className="chevron">v</span>
+        </summary>
+        <div className="filters-content">
+          {monetizationOptions.map((option) => (
+            <label className="checkbox-row" key={option.value}>
+              <input
+                type="checkbox"
+                checked={selectedMonetization.includes(option.value)}
+                onChange={() => onToggleMonetization?.(option.value)}
+              />
+              <span>{option.label}</span>
+            </label>
+          ))}
         </div>
-        {monetizationOptions.map((option) => (
-          <label className="checkbox-row" key={option.value}>
-            <input
-              type="checkbox"
-              checked={selectedMonetization.includes(option.value)}
-              onChange={() => onToggleMonetization?.(option.value)}
-            />
-            <span>{option.label}</span>
-          </label>
-        ))}
-      </div>
+      </details>
 
-      <div className="filters-section">
-        <div className="filters-title">
+      <details className="filters-section" open>
+        <summary className="filters-title">
           <span>{stageLabel}</span>
           <span className="chevron">v</span>
+        </summary>
+        <div className="filters-content">
+          {stages.map((stage) => (
+            <label className="checkbox-row" key={stage.value}>
+              <input
+                type="radio"
+                name="stage"
+                checked={selectedStage === stage.value}
+                onChange={() => onStageChange?.(stage.value)}
+              />
+              <span>{stage.label}</span>
+            </label>
+          ))}
         </div>
-        {stages.map((stage) => (
-          <label className="checkbox-row" key={stage.value}>
-            <input
-              type="radio"
-              name="stage"
-              checked={selectedStage === stage.value}
-              onChange={() => onStageChange?.(stage.value)}
-            />
-            <span>{stage.label}</span>
-          </label>
-        ))}
-      </div>
+      </details>
 
-      <div className="filters-section">
-        <div className="filters-title">
+      <details className="filters-section" open>
+        <summary className="filters-title">
           <span>{roleLabel}</span>
           <span className="chevron">v</span>
+        </summary>
+        <div className="filters-content">
+          {roleOptions.map((role) => (
+            <label className="checkbox-row" key={role.value}>
+              <input
+                type="radio"
+                name="roleNeeded"
+                checked={selectedRole === role.value}
+                onChange={() => onRoleChange?.(role.value)}
+              />
+              <span>{role.label}</span>
+            </label>
+          ))}
         </div>
-        {roleOptions.map((role) => (
-          <label className="checkbox-row" key={role.value}>
-            <input
-              type="radio"
-              name="roleNeeded"
-              checked={selectedRole === role.value}
-              onChange={() => onRoleChange?.(role.value)}
-            />
-            <span>{role.label}</span>
-          </label>
-        ))}
-      </div>
+      </details>
 
-      <div className="filters-section">
-        <div className="filters-title">
+      <details className="filters-section" open>
+        <summary className="filters-title">
           <span>{equityLabel}</span>
           <span className="chevron">v</span>
-        </div>
-        <div className="range-inputs">
+        </summary>
+        <div className="filters-content range-inputs">
           <input
             type="text"
             placeholder={language === "AR" ? "من" : "From"}
@@ -278,36 +290,44 @@ export default function Filters({
             onChange={(event) => onEquityMaxChange?.(event.target.value)}
           />
         </div>
-      </div>
+      </details>
 
-      <div className="filters-section">
-        <div className="filters-title">
+      <details className="filters-section" open>
+        <summary className="filters-title">
           <span>{commitmentLabel}</span>
           <span className="chevron">v</span>
+        </summary>
+        <div className="filters-content">
+          {commitmentOptions.map((option) => (
+            <label className="checkbox-row" key={option.value}>
+              <input
+                type="radio"
+                name="commitment"
+                checked={selectedCommitment === option.value}
+                onChange={() => onCommitmentChange?.(option.value)}
+              />
+              <span>{option.label}</span>
+            </label>
+          ))}
         </div>
-        {commitmentOptions.map((option) => (
-          <label className="checkbox-row" key={option.value}>
-            <input
-              type="radio"
-              name="commitment"
-              checked={selectedCommitment === option.value}
-              onChange={() => onCommitmentChange?.(option.value)}
-            />
-            <span>{option.label}</span>
-          </label>
-        ))}
-      </div>
+      </details>
 
-      <div className="filters-section">
-        <label className="checkbox-row">
-          <input
-            type="checkbox"
-            checked={verifiedOnly}
-            onChange={(event) => onVerifiedChange?.(event.target.checked)}
-          />
+      <details className="filters-section" open>
+        <summary className="filters-title">
           <span>{verifiedLabel}</span>
-        </label>
-      </div>
+          <span className="chevron">v</span>
+        </summary>
+        <div className="filters-content">
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={verifiedOnly}
+              onChange={(event) => onVerifiedChange?.(event.target.checked)}
+            />
+            <span>{verifiedLabel}</span>
+          </label>
+        </div>
+      </details>
     </aside>
   );
 }

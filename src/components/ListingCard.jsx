@@ -14,10 +14,13 @@ export default function ListingCard({
 }) {
   const { formatCurrency } = useCurrency();
   const locale = language === "AR" ? "ar-SA" : "en-US";
+  const fallbackImage =
+    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='380' viewBox='0 0 600 380'><rect width='600' height='380' fill='%23e5e7eb'/><path d='M150 250h300l-80-90-50 60-40-50-130 150z' fill='%23cbd5f5'/><circle cx='220' cy='140' r='28' fill='%23cbd5f5'/></svg>";
   const priceValue =
     Number(business.price) ||
     Number(String(business.price).replace(/[^0-9.]/g, "")) ||
     0;
+  const imageSrc = business.image?.trim() || fallbackImage;
   const priceLabel = formatCurrency(priceValue, { locale });
   const viewsCount = getListingViews(business.id, business.views);
   const financialsLabel = canAccessDetails
@@ -53,10 +56,21 @@ export default function ListingCard({
     onViewDetails?.(business.id);
   };
 
+  const handleImageError = (event) => {
+    if (event.currentTarget.dataset.fallback) return;
+    event.currentTarget.dataset.fallback = "true";
+    event.currentTarget.src = fallbackImage;
+  };
+
   return (
     <article className="listing-card">
       <div className="listing-media">
-        <img src={business.image} alt={business.title} />
+        <img
+          src={imageSrc}
+          alt={business.title}
+          loading="lazy"
+          onError={handleImageError}
+        />
         {business.featured ? (
           <span className="badge badge-dark">
             {labels?.featuredLabel || "Featured"}

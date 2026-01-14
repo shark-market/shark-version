@@ -8,6 +8,7 @@ import Pricing from "./pages/Pricing";
 import Account from "./pages/Account";
 import Subscriptions from "./pages/Subscriptions";
 import Onboarding from "./pages/Onboarding";
+import OnboardingNext from "./pages/OnboardingNext";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import EscrowServices from "./pages/EscrowServices";
@@ -25,7 +26,13 @@ const isProfileComplete = (profile) =>
   Boolean(profile?.first_name && profile?.last_name);
 
 export default function App() {
-  const [language, setLanguage] = useState("EN");
+  const [language, setLanguage] = useState(() => {
+    if (typeof window === "undefined") {
+      return "AR";
+    }
+    const stored = window.localStorage.getItem("sm-language");
+    return stored === "EN" || stored === "AR" ? stored : "AR";
+  });
   const location = useLocation();
   const navigate = useNavigate();
   const { user, profile, loading, signOut, role } = useAuth();
@@ -40,6 +47,15 @@ export default function App() {
       }
     }
   }, [location]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem("sm-language", language);
+    document.documentElement.lang = language === "AR" ? "ar" : "en";
+    document.documentElement.dir = language === "AR" ? "rtl" : "ltr";
+  }, [language]);
 
   const needsOnboarding = useMemo(
     () => authenticated && !loading && !isProfileComplete(profile),
@@ -102,6 +118,20 @@ export default function App() {
                 <Navigate to="/" replace />
               ) : (
                 <Onboarding language={language} />
+              )
+            ) : loading ? null : (
+              <Navigate to="/auth" replace />
+            )
+          }
+        />
+        <Route
+          path="/onboarding/next"
+          element={
+            authenticated ? (
+              needsOnboarding ? (
+                <Navigate to="/onboarding" replace />
+              ) : (
+                <OnboardingNext language={language} />
               )
             ) : loading ? null : (
               <Navigate to="/auth" replace />

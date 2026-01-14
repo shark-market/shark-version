@@ -1,33 +1,49 @@
 import { useMemo, useState } from "react";
-import {
-  BLOG_CATEGORIES,
-  BLOG_IMAGE_MAP,
-  BLOG_POSTS,
-  makeBlogImage,
-} from "../data/blogdata";
+import { useNavigate } from "react-router-dom";
+import { BLOG_CATEGORIES, BLOG_POSTS } from "../data/blogPosts";
 
 export default function BlogSection({ language = "EN", text }) {
+  const navigate = useNavigate();
   const [blogSearch, setBlogSearch] = useState("");
   const [blogCategory, setBlogCategory] = useState("all");
   const [blogSort, setBlogSort] = useState("newest");
 
+  const categoryLabels = useMemo(() => {
+    const labels = {};
+    BLOG_CATEGORIES.forEach((category) => {
+      labels[category.value] = category.label[language] || category.label.EN;
+    });
+    return labels;
+  }, [language]);
+
+  const getField = (post, key) =>
+    post[key]?.[language] || post[key]?.EN || post[key]?.AR || "";
+
   const blogPosts = useMemo(() => {
     const normalizedSearch = blogSearch.trim().toLowerCase();
+
     return BLOG_POSTS.filter((post) => {
-      const title = post.title[language] || post.title.EN;
-      const excerpt = post.excerpt[language] || post.excerpt.EN;
       const matchesCategory =
         blogCategory === "all" ? true : post.category === blogCategory;
-      const matchesSearch = normalizedSearch
-        ? title.toLowerCase().includes(normalizedSearch) ||
-          excerpt.toLowerCase().includes(normalizedSearch)
-        : true;
-      return matchesCategory && matchesSearch;
+      if (!matchesCategory) {
+        return false;
+      }
+      if (!normalizedSearch) {
+        return true;
+      }
+      const searchable = [
+        getField(post, "title"),
+        getField(post, "excerpt"),
+        categoryLabels[post.category] || post.category,
+      ]
+        .join(" ")
+        .toLowerCase();
+      return searchable.includes(normalizedSearch);
     }).sort((a, b) => {
       const diff = new Date(b.date) - new Date(a.date);
       return blogSort === "oldest" ? -diff : diff;
     });
-  }, [blogCategory, blogSearch, blogSort, language]);
+  }, [blogCategory, blogSearch, blogSort, categoryLabels, language]);
 
   return (
     <section className="blog-section" id="blog">
@@ -52,7 +68,7 @@ export default function BlogSection({ language = "EN", text }) {
               type="button"
               onClick={() => setBlogCategory(category.value)}
             >
-              {category.label[language] || category.label.EN}
+              {categoryLabels[category.value]}
             </button>
           ))}
         </div>
@@ -71,28 +87,32 @@ export default function BlogSection({ language = "EN", text }) {
         </div>
       </div>
 
+      <div className="container blog-announcement" role="complementary">
+        <div className="announcement-content">
+          <div className="announcement-label">{text.blogAnnouncementLabel}</div>
+          <h3>{text.blogAnnouncementTitle}</h3>
+          <p className="muted">{text.blogAnnouncementBody}</p>
+        </div>
+        <button
+          className="btn btn-ghost"
+          type="button"
+          onClick={() => navigate("/pricing")}
+        >
+          {text.blogAnnouncementCta}
+        </button>
+      </div>
+
       <div className="container blog-grid">
         {blogPosts.map((post) => (
           <article className="blog-card" key={post.id}>
             <div className="blog-media">
-              <img
-                src={makeBlogImage(
-                  post.title[language] || post.title.EN,
-                  BLOG_IMAGE_MAP[post.image]
-                )}
-                alt={post.title[language] || post.title.EN}
-              />
+              <img src={post.coverImage} alt={getField(post, "title")} />
             </div>
             <div className="blog-body">
-              <span className="pill">
-                {BLOG_CATEGORIES.find(
-                  (category) => category.value === post.category
-                )?.label[language] || post.category}
-              </span>
-              <h3>{post.title[language] || post.title.EN}</h3>
-              <p className="muted">{post.excerpt[language] || post.excerpt.EN}</p>
+              <span className="pill">{categoryLabels[post.category]}</span>
+              <h3>{getField(post, "title")}</h3>
+              <p className="muted">{getField(post, "excerpt")}</p>
               <div className="blog-meta">
-                <span>{post.readTime[language] || post.readTime.EN}</span>
                 <span>
                   {new Date(post.date).toLocaleDateString(
                     language === "AR" ? "ar-SA" : "en-US",
@@ -105,7 +125,7 @@ export default function BlogSection({ language = "EN", text }) {
                 </span>
               </div>
               <button className="link-button" type="button">
-                {language === "AR" ? "اقرأ المزيد →" : "Read More →"}
+                {text.blogReadMore}
               </button>
             </div>
           </article>

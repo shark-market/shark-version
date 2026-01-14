@@ -54,6 +54,49 @@ const parsePhone = (phone, fallbackCode) => {
   };
 };
 
+const validateOnboarding = (formState, language) => {
+  const isArabic = language === "AR";
+  const errors = {};
+
+  if (!formState.role) {
+    errors.role = isArabic ? "اختر نوع الحساب" : "Select an account type";
+  }
+  if (!formState.firstName.trim()) {
+    errors.firstName = isArabic ? "الاسم الأول مطلوب" : "First name is required";
+  }
+  if (!formState.lastName.trim()) {
+    errors.lastName = isArabic ? "اسم العائلة مطلوب" : "Last name is required";
+  }
+  if (!formState.country) {
+    errors.country = isArabic ? "الدولة مطلوبة" : "Country is required";
+  }
+  if (!formState.phoneNumber.trim()) {
+    errors.phoneNumber = isArabic
+      ? "رقم الهاتف مطلوب"
+      : "Phone number is required";
+  }
+  if (!formState.termsAccepted) {
+    errors.termsAccepted = isArabic
+      ? "يجب الموافقة على الشروط"
+      : "You must accept the terms";
+  }
+  if (
+    formState.phoneNumber &&
+    (formState.phoneNumber.length < 7 || formState.phoneNumber.length > 12)
+  ) {
+    errors.phoneNumber = isArabic
+      ? "رقم الهاتف غير صحيح"
+      : "Invalid phone number";
+  }
+
+  const firstErrorField = Object.keys(errors)[0] || "";
+  return {
+    valid: !firstErrorField,
+    errors,
+    firstErrorField,
+  };
+};
+
 export default function Onboarding({ language = "EN" }) {
   const navigate = useNavigate();
   const { user, profile, refreshProfile } = useAuth();
@@ -63,7 +106,7 @@ export default function Onboarding({ language = "EN" }) {
     ? currencies?.[currency]?.symbol || currency
     : currencies?.[currency]?.label || currency;
   const [formState, setFormState] = useState({
-    role: "buyer",
+    role: "",
     firstName: "",
     lastName: "",
     companyName: "",
@@ -81,7 +124,10 @@ export default function Onboarding({ language = "EN" }) {
   const [avatarFile, setAvatarFile] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState("");
   const [status, setStatus] = useState({ type: "", message: "" });
+  const [formMessage, setFormMessage] = useState("");
+  const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSkipModal, setShowSkipModal] = useState(false);
 
   const text = useMemo(
     () => ({
@@ -90,20 +136,24 @@ export default function Onboarding({ language = "EN" }) {
         language === "AR"
           ? "أخبرنا عن نفسك لنخصص تجربتك."
           : "Tell us about yourself to personalize your experience.",
-      role: language === "AR" ? "أنا" : "I am a",
+      progressStep: language === "AR" ? "الخطوة 1 من 3" : "Step 1 of 3",
+      progressHelper:
+        language === "AR"
+          ? "أكمل المعلومات الأساسية لتبدأ بسرعة."
+          : "Complete your basics to get started quickly.",
+      role: language === "AR" ? "نوع الحساب" : "Account type",
       buyer: language === "AR" ? "مشتري" : "Buyer",
       seller: language === "AR" ? "بائع" : "Seller",
       firstName: language === "AR" ? "الاسم الأول" : "First name",
       lastName: language === "AR" ? "اسم العائلة" : "Last name",
-      company: language === "AR" ? "اسم الشركة (اختياري)" : "Company (optional)",
+      company: language === "AR" ? "اسم الشركة" : "Company name",
       country: language === "AR" ? "الدولة" : "Country",
-      phone: language === "AR" ? "الهاتف (اختياري)" : "Phone (optional)",
+      phone: language === "AR" ? "رقم الهاتف" : "Phone number",
       howHeard:
         language === "AR"
-          ? "كيف سمعت عنا؟ (اختياري)"
-          : "How did you hear about us? (optional)",
-      businessUrl:
-        language === "AR" ? "رابط مشروعك" : "Business URL",
+          ? "كيف سمعت عنا؟"
+          : "How did you hear about us?",
+      businessUrl: language === "AR" ? "رابط مشروعك" : "Business URL",
       businessCategory:
         language === "AR" ? "تصنيف المشروع" : "Business Category",
       annualRevenue:
@@ -122,10 +172,35 @@ export default function Onboarding({ language = "EN" }) {
       termsAnd: language === "AR" ? "و" : "and",
       termsTerms: language === "AR" ? "الشروط والأحكام" : "Terms & Conditions",
       termsPrivacy: language === "AR" ? "سياسة الخصوصية" : "Privacy Policy",
-      avatar:
-        language === "AR" ? "الصورة الشخصية (اختياري)" : "Avatar (optional)",
+      avatar: language === "AR" ? "الصورة الشخصية" : "Avatar",
       chooseImage: language === "AR" ? "اختر صورة" : "Choose image",
-      submit: language === "AR" ? "احفظ وأكمل" : "Save & Continue",
+      submit: language === "AR" ? "إكمال" : "Complete",
+      optionalTitle: "اختياري / Optional",
+      optionalHelper:
+        language === "AR"
+          ? "أضف تفاصيل إضافية لتحسين تجربتك."
+          : "Add extra details to improve your experience.",
+      skip: language === "AR" ? "تخطي الآن" : "Skip for now",
+      skipTitle: "تخطي الإعداد الآن؟",
+      skipBody:
+        "يمكنك إكمال البيانات لاحقًا، لكن بعض الميزات مثل التحقق وإضافة المشاريع قد تكون محدودة.",
+      skipCancel: "إلغاء",
+      skipConfirm: "تخطي",
+      toastBuyer: "جاهزين! ابدأ تصفح المشاريع",
+      toastSeller: "ممتاز! ابدأ بإضافة مشروعك الأول",
+      saving: language === "AR" ? "جاري الحفظ…" : "Saving...",
+      successMessage:
+        language === "AR"
+          ? "✅ تم حفظ بياناتك بنجاح"
+          : "✅ Your details were saved successfully",
+      validationMessage:
+        language === "AR"
+          ? "يرجى تعبئة الحقول المطلوبة"
+          : "Please fill the required fields.",
+      saveError:
+        language === "AR"
+          ? "تعذر حفظ البيانات الآن. حاول مرة أخرى."
+          : "We couldn't save your details. Please try again.",
       error:
         language === "AR"
           ? "حدث خطأ، حاول مرة أخرى."
@@ -167,39 +242,73 @@ export default function Onboarding({ language = "EN" }) {
         ? event.target.checked
         : event.target.value;
     setFormState((prev) => ({ ...prev, [field]: value }));
+    setFormMessage("");
+    setErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
   };
 
   const handlePhoneNumber = (event) => {
     const next = event.target.value.replace(/\D/g, "");
     setFormState((prev) => ({ ...prev, phoneNumber: next.slice(0, 12) }));
+    setFormMessage("");
+    setErrors((prev) => {
+      if (!prev.phoneNumber) return prev;
+      const updated = { ...prev };
+      delete updated.phoneNumber;
+      return updated;
+    });
+  };
+
+  const setRole = (nextRole) => {
+    setFormState((prev) => ({ ...prev, role: nextRole }));
+    setFormMessage("");
+    setErrors((prev) => {
+      if (!prev.role) return prev;
+      const next = { ...prev };
+      delete next.role;
+      return next;
+    });
+  };
+
+  const focusFirstError = (field) => {
+    if (!field || typeof document === "undefined") return;
+    const target = document.querySelector(`[data-field="${field}"]`);
+    if (!target) return;
+    if (target.scrollIntoView) {
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    if (target.focus) {
+      target.focus({ preventScroll: true });
+    }
   };
 
   const handleSubmit = async (event) => {
-    event.preventDefault();
+    if (event?.preventDefault) {
+      event.preventDefault();
+    }
     if (!user) return;
-    if (!formState.termsAccepted) {
-      setStatus({
-        type: "error",
-        message: isArabic
-          ? "يرجى الموافقة على الشروط لإكمال التسجيل."
-          : "Please accept the terms to continue.",
-      });
-      return;
-    }
-    if (
-      formState.phoneNumber &&
-      (formState.phoneNumber.length < 7 || formState.phoneNumber.length > 12)
-    ) {
-      setStatus({
-        type: "error",
-        message: isArabic
-          ? "رقم الهاتف غير صحيح."
-          : "Phone number length is invalid.",
-      });
-      return;
-    }
-    setIsSubmitting(true);
+    if (isSubmitting) return;
+    setFormMessage("");
     setStatus({ type: "", message: "" });
+    const {
+      valid,
+      errors: nextErrors,
+      firstErrorField,
+    } = validateOnboarding(formState, language);
+
+    if (!valid) {
+      setErrors(nextErrors);
+      setFormMessage(text.validationMessage);
+      focusFirstError(firstErrorField);
+      return;
+    }
+
+    setErrors({});
+    setIsSubmitting(true);
     try {
       let avatarUrl = profile?.avatar_url || null;
       if (avatarFile) {
@@ -209,7 +318,11 @@ export default function Onboarding({ language = "EN" }) {
           .from("avatars")
           .upload(filePath, avatarFile, { upsert: true });
         if (uploadError) {
-          setStatus({ type: "error", message: uploadError.message });
+          console.error("[Onboarding save] Avatar upload error:", uploadError);
+          setStatus({
+            type: "error",
+            message: text.saveError,
+          });
           return;
         }
         const { data } = supabase.storage.from("avatars").getPublicUrl(filePath);
@@ -241,13 +354,21 @@ export default function Onboarding({ language = "EN" }) {
         avatar_url: avatarUrl,
       });
       if (error) {
-        setStatus({ type: "error", message: error.message });
+        console.error("[Onboarding save] Profile save error:", error);
+        setStatus({
+          type: "error",
+          message: text.saveError,
+        });
         return;
       }
       await refreshProfile(user.id);
-      navigate("/", { replace: true });
+      setStatus({ type: "success", message: text.successMessage });
+      setTimeout(() => {
+        navigate("/onboarding/next", { replace: true });
+      }, 700);
     } catch (err) {
-      setStatus({ type: "error", message: err?.message || text.error });
+      console.error("[Onboarding save] Unexpected error:", err);
+      setStatus({ type: "error", message: text.saveError });
     } finally {
       setIsSubmitting(false);
     }
@@ -259,95 +380,135 @@ export default function Onboarding({ language = "EN" }) {
     <div className="page">
       <section className="onboarding-section">
         <div className="container onboarding-card">
+          <div className="onboarding-progress">
+            <div className="progress-meta">
+              <span className="progress-step">{text.progressStep}</span>
+              <span className="muted">{text.progressHelper}</span>
+            </div>
+            <div className="progress-bar">
+              <span style={{ width: "33%" }} />
+            </div>
+          </div>
           <div className="onboarding-header">
             <h2>{text.title}</h2>
             <p className="muted">{text.subtitle}</p>
           </div>
 
           <form className="onboarding-form" onSubmit={handleSubmit}>
+            {formMessage ? (
+              <div className="form-error-banner" role="alert">
+                {formMessage}
+              </div>
+            ) : null}
             <div className="field-group">
-              <label>{text.role}</label>
-              <div className="role-toggle">
+              <label id="role-label">{text.role}</label>
+              <div
+                className="role-toggle"
+                role="radiogroup"
+                aria-labelledby="role-label"
+                aria-invalid={Boolean(errors.role)}
+                aria-describedby={errors.role ? "role-error" : undefined}
+              >
                 <button
                   type="button"
-                  className={formState.role === "buyer" ? "active" : ""}
-                  onClick={() =>
-                    setFormState((prev) => ({ ...prev, role: "buyer" }))
-                  }
+                  className={`role-card ${formState.role === "buyer" ? "active" : ""}`}
+                  role="radio"
+                  aria-checked={formState.role === "buyer"}
+                  data-field="role"
+                  tabIndex={formState.role === "buyer" || !formState.role ? 0 : -1}
+                  onClick={() => setRole("buyer")}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setRole("buyer");
+                    }
+                    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+                      event.preventDefault();
+                      setRole("seller");
+                    }
+                  }}
                 >
                   {text.buyer}
                 </button>
                 <button
                   type="button"
-                  className={formState.role === "seller" ? "active" : ""}
-                  onClick={() =>
-                    setFormState((prev) => ({ ...prev, role: "seller" }))
-                  }
+                  className={`role-card ${formState.role === "seller" ? "active" : ""}`}
+                  role="radio"
+                  aria-checked={formState.role === "seller"}
+                  data-field="role"
+                  tabIndex={formState.role === "seller" ? 0 : -1}
+                  onClick={() => setRole("seller")}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setRole("seller");
+                    }
+                    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+                      event.preventDefault();
+                      setRole("buyer");
+                    }
+                  }}
                 >
                   {text.seller}
                 </button>
               </div>
+              {errors.role ? (
+                <span className="field-error" id="role-error">
+                  {errors.role}
+                </span>
+              ) : null}
             </div>
 
             <div className="field-grid">
               <div className="field-group">
-                <label>{text.firstName}</label>
+                <label htmlFor="firstName">{text.firstName}</label>
                 <input
+                  id="firstName"
                   type="text"
                   value={formState.firstName}
                   onChange={handleChange("firstName")}
-                  required
+                  data-field="firstName"
+                  aria-invalid={Boolean(errors.firstName)}
+                  aria-describedby={errors.firstName ? "first-name-error" : undefined}
+                  className={errors.firstName ? "input-error" : ""}
                 />
+                {errors.firstName ? (
+                  <span className="field-error" id="first-name-error">
+                    {errors.firstName}
+                  </span>
+                ) : null}
               </div>
               <div className="field-group">
-                <label>{text.lastName}</label>
+                <label htmlFor="lastName">{text.lastName}</label>
                 <input
+                  id="lastName"
                   type="text"
                   value={formState.lastName}
                   onChange={handleChange("lastName")}
-                  required
+                  data-field="lastName"
+                  aria-invalid={Boolean(errors.lastName)}
+                  aria-describedby={errors.lastName ? "last-name-error" : undefined}
+                  className={errors.lastName ? "input-error" : ""}
                 />
+                {errors.lastName ? (
+                  <span className="field-error" id="last-name-error">
+                    {errors.lastName}
+                  </span>
+                ) : null}
               </div>
             </div>
 
             <div className="field-grid">
               <div className="field-group">
-                <label>{text.company}</label>
-                <input
-                  type="text"
-                  value={formState.companyName}
-                  onChange={handleChange("companyName")}
-                />
-              </div>
-              <div className="field-group">
-                <label>{text.avatar}</label>
-                <div className="avatar-upload">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      if (!file) return;
-                      setAvatarFile(file);
-                      setAvatarPreview(URL.createObjectURL(file));
-                    }}
-                  />
-                  {avatarPreview ? (
-                    <img src={avatarPreview} alt="avatar preview" />
-                  ) : (
-                    <span className="muted">{text.chooseImage}</span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="field-grid">
-              <div className="field-group">
-                <label>{text.country}</label>
+                <label htmlFor="country">{text.country}</label>
                 <select
+                  id="country"
                   value={formState.country}
                   onChange={handleChange("country")}
-                  required
+                  data-field="country"
+                  aria-invalid={Boolean(errors.country)}
+                  aria-describedby={errors.country ? "country-error" : undefined}
+                  className={errors.country ? "input-error" : ""}
                 >
                   <option value="">
                     {language === "AR" ? "اختر" : "Select"}
@@ -358,13 +519,20 @@ export default function Onboarding({ language = "EN" }) {
                     </option>
                   ))}
                 </select>
+                {errors.country ? (
+                  <span className="field-error" id="country-error">
+                    {errors.country}
+                  </span>
+                ) : null}
               </div>
               <div className="field-group">
-                <label>{text.phone}</label>
+                <label htmlFor="phoneNumber">{text.phone}</label>
                 <div className="phone-input">
                   <select
+                    id="phoneCountry"
                     value={formState.phoneCountry}
                     onChange={handleChange("phoneCountry")}
+                    aria-label={isArabic ? "مفتاح الدولة" : "Country code"}
                   >
                     {PHONE_CODES.map((code) => (
                       <option key={code} value={code}>
@@ -373,111 +541,178 @@ export default function Onboarding({ language = "EN" }) {
                     ))}
                   </select>
                   <input
+                    id="phoneNumber"
                     type="tel"
                     inputMode="numeric"
                     value={formState.phoneNumber}
                     onChange={handlePhoneNumber}
                     placeholder={isArabic ? "رقم الجوال" : "Phone number"}
+                    data-field="phoneNumber"
+                    aria-invalid={Boolean(errors.phoneNumber)}
+                    aria-describedby={errors.phoneNumber ? "phone-error" : undefined}
+                    className={errors.phoneNumber ? "input-error" : ""}
                   />
                 </div>
+                {errors.phoneNumber ? (
+                  <span className="field-error" id="phone-error">
+                    {errors.phoneNumber}
+                  </span>
+                ) : null}
               </div>
             </div>
 
-            <div className="field-grid">
-              <div className="field-group">
-                <label>{text.howHeard}</label>
-                <select
-                  value={formState.howHeard}
-                  onChange={handleChange("howHeard")}
-                >
-                  <option value="">
-                    {language === "AR" ? "اختر" : "Select"}
-                  </option>
-                  {HEAR_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label[language] || option.label.EN}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="field-group" />
-            </div>
-
-            {formState.role === "seller" ? (
-              <>
+            <details className="onboarding-optional">
+              <summary className="optional-summary">
+                <div className="optional-summary-text">
+                  <span>{text.optionalTitle}</span>
+                  <span className="muted">{text.optionalHelper}</span>
+                </div>
+              </summary>
+              <div className="optional-body">
                 <div className="field-grid">
                   <div className="field-group">
-                    <label>{text.businessUrl}</label>
+                    <label htmlFor="companyName">{text.company}</label>
                     <input
+                      id="companyName"
                       type="text"
-                      value={formState.businessUrl}
-                      onChange={handleChange("businessUrl")}
-                      placeholder="e.g mywebsite.com"
+                      value={formState.companyName}
+                      onChange={handleChange("companyName")}
                     />
                   </div>
                   <div className="field-group">
-                    <label>{text.businessCategory}</label>
+                    <label htmlFor="avatarUpload">{text.avatar}</label>
+                    <div className="avatar-upload">
+                      <input
+                        id="avatarUpload"
+                        type="file"
+                        accept="image/*"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (!file) return;
+                          setAvatarFile(file);
+                          setAvatarPreview(URL.createObjectURL(file));
+                        }}
+                      />
+                      {avatarPreview ? (
+                        <img src={avatarPreview} alt="avatar preview" />
+                      ) : (
+                        <span className="muted">{text.chooseImage}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="field-grid">
+                  <div className="field-group">
+                    <label htmlFor="howHeard">{text.howHeard}</label>
                     <select
-                      value={formState.businessCategory}
-                      onChange={handleChange("businessCategory")}
+                      id="howHeard"
+                      value={formState.howHeard}
+                      onChange={handleChange("howHeard")}
                     >
                       <option value="">
                         {language === "AR" ? "اختر" : "Select"}
                       </option>
-                      {BUSINESS_CATEGORIES.map((category) => (
-                        <option key={category.value} value={category.value}>
-                          {category.label[language] || category.label.EN}
+                      {HEAR_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label[language] || option.label.EN}
                         </option>
                       ))}
                     </select>
                   </div>
-                </div>
-
-                <div className="field-grid">
-                  <div className="field-group">
-                    <label>{text.annualRevenue}</label>
-                    <input
-                      type="text"
-                      value={formState.annualRevenue}
-                      onChange={handleChange("annualRevenue")}
-                      placeholder="e.g 250,000"
-                    />
-                  </div>
-                  <div className="field-group">
-                    <label>{text.annualProfit}</label>
-                    <input
-                      type="text"
-                      value={formState.annualProfit}
-                      onChange={handleChange("annualProfit")}
-                      placeholder="e.g 150,000"
-                    />
-                  </div>
-                </div>
-
-                <div className="field-grid">
-                  <div className="field-group">
-                    <label>{text.businessesOwned}</label>
-                    <input
-                      type="text"
-                      value={formState.businessesOwned}
-                      onChange={handleChange("businessesOwned")}
-                      placeholder="e.g 2"
-                    />
-                  </div>
                   <div className="field-group" />
                 </div>
-              </>
-            ) : null}
+
+                {formState.role === "seller" ? (
+                  <>
+                    <div className="field-grid">
+                      <div className="field-group">
+                        <label htmlFor="businessUrl">{text.businessUrl}</label>
+                        <input
+                          id="businessUrl"
+                          type="text"
+                          value={formState.businessUrl}
+                          onChange={handleChange("businessUrl")}
+                          placeholder="e.g mywebsite.com"
+                        />
+                      </div>
+                      <div className="field-group">
+                        <label htmlFor="businessCategory">
+                          {text.businessCategory}
+                        </label>
+                        <select
+                          id="businessCategory"
+                          value={formState.businessCategory}
+                          onChange={handleChange("businessCategory")}
+                        >
+                          <option value="">
+                            {language === "AR" ? "اختر" : "Select"}
+                          </option>
+                          {BUSINESS_CATEGORIES.map((category) => (
+                            <option key={category.value} value={category.value}>
+                              {category.label[language] || category.label.EN}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="field-grid">
+                      <div className="field-group">
+                        <label htmlFor="annualRevenue">{text.annualRevenue}</label>
+                        <input
+                          id="annualRevenue"
+                          type="text"
+                          value={formState.annualRevenue}
+                          onChange={handleChange("annualRevenue")}
+                          placeholder="e.g 250,000"
+                        />
+                      </div>
+                      <div className="field-group">
+                        <label htmlFor="annualProfit">{text.annualProfit}</label>
+                        <input
+                          id="annualProfit"
+                          type="text"
+                          value={formState.annualProfit}
+                          onChange={handleChange("annualProfit")}
+                          placeholder="e.g 150,000"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="field-grid">
+                      <div className="field-group">
+                        <label htmlFor="businessesOwned">
+                          {text.businessesOwned}
+                        </label>
+                        <input
+                          id="businessesOwned"
+                          type="text"
+                          value={formState.businessesOwned}
+                          onChange={handleChange("businessesOwned")}
+                          placeholder="e.g 2"
+                        />
+                      </div>
+                      <div className="field-group" />
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            </details>
 
             <div className="field-group">
               <label className="checkbox-row">
                 <input
+                  id="termsAccepted"
                   type="checkbox"
                   checked={formState.termsAccepted}
                   onChange={handleChange("termsAccepted")}
-                  required
+                  data-field="termsAccepted"
+                  aria-invalid={Boolean(errors.termsAccepted)}
+                  aria-describedby={errors.termsAccepted ? "terms-error" : undefined}
+                  aria-labelledby="terms-label"
                 />
-                <span>
+                <span id="terms-label">
                   {text.termsLabel}{" "}
                   <button
                     type="button"
@@ -496,20 +731,64 @@ export default function Onboarding({ language = "EN" }) {
                   </button>
                 </span>
               </label>
+              {errors.termsAccepted ? (
+                <span className="field-error" id="terms-error">
+                  {errors.termsAccepted}
+                </span>
+              ) : null}
             </div>
 
             {status.message ? (
-              <div className={`auth-status ${status.type}`}>
+              <div
+                className={`auth-status ${status.type}`}
+                role={status.type === "error" ? "alert" : "status"}
+              >
                 {status.message}
               </div>
             ) : null}
 
-            <button className="btn btn-dark" type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "..." : text.submit}
-            </button>
+            <div className="onboarding-actions">
+              <button className="btn btn-dark" type="submit" disabled={isSubmitting}>
+                {isSubmitting ? text.saving : text.submit}
+              </button>
+              <button
+                className="link-button onboarding-skip"
+                type="button"
+                onClick={() => setShowSkipModal(true)}
+              >
+                {text.skip}
+              </button>
+            </div>
           </form>
         </div>
       </section>
+      {showSkipModal ? (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal-card onboarding-skip-modal">
+            <h3>{text.skipTitle}</h3>
+            <p className="muted">{text.skipBody}</p>
+            <div className="modal-actions">
+              <button
+                className="btn btn-ghost"
+                type="button"
+                onClick={() => setShowSkipModal(false)}
+              >
+                {text.skipCancel}
+              </button>
+              <button
+                className="btn btn-dark"
+                type="button"
+                onClick={() => {
+                  setShowSkipModal(false);
+                  handleSubmit();
+                }}
+              >
+                {text.skipConfirm}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

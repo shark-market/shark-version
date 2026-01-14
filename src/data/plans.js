@@ -30,7 +30,7 @@ export const PLANS = [
   },
   {
     id: "plus",
-    title: { EN: "Plus ⭐", AR: "بلس ⭐" },
+    title: { EN: "Basic", AR: "أساسي" },
     priceMonthlySAR: 59,
     priceYearlySAR: 590,
     billing: "monthly",
@@ -70,14 +70,14 @@ export const PLANS = [
     },
     features: {
       EN: [
-        "Everything in Plus",
+        "Everything in Basic",
         "Unlimited messaging",
         "Priority exposure + Pro badge",
         "Unlimited NDA requests",
         "Full data room access",
       ],
       AR: [
-        "كل ما في Plus",
+        "كل ما في أساسي",
         "مراسلة غير محدودة",
         "أولوية الظهور + شارة Pro",
         "طلبات NDA غير محدودة",
