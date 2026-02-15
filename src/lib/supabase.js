@@ -15,12 +15,25 @@ const createNoopSupabase = () => ({
       data: { subscription: { unsubscribe: () => {} } },
     }),
     signOut: async () => ({ error: null }),
+    signInWithPassword: async () => ({ data: null, error: null }),
+    signInWithOAuth: async () => ({ data: null, error: null }),
+    signUp: async () => ({ data: { user: null }, error: null }),
+    resetPasswordForEmail: async () => ({ data: null, error: null }),
   },
   from: () => ({
     select: () => ({
       eq: () => ({
         maybeSingle: async () => ({ data: null, error: null }),
       }),
+      maybeSingle: async () => ({ data: null, error: null }),
+    }),
+    upsert: async () => ({ data: null, error: null }),
+    insert: async () => ({ data: null, error: null }),
+    update: () => ({
+      eq: async () => ({ data: null, error: null }),
+    }),
+    delete: () => ({
+      eq: async () => ({ data: null, error: null }),
     }),
   }),
 });

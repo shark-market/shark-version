@@ -32,7 +32,7 @@ const makeBlogImage = (label, colors) => {
         ${label}
       </text>
       <text x="110" y="660" font-family="Plus Jakarta Sans, Arial" font-size="24" fill="#475569">
-        Shark Market
+        SHARKMKT
       </text>
     </svg>
   `;
@@ -41,7 +41,28 @@ const makeBlogImage = (label, colors) => {
 
 const cover = (label, index) => makeBlogImage(label, COVER_COLORS[index % COVER_COLORS.length]);
 
-export const BLOG_POSTS = [
+const buildDefaultContent = (post) => ({
+  EN: [
+    post.excerpt.EN,
+    "SHARKMKT focuses on verified metrics, secure communication, and better deal structure for both buyers and sellers.",
+    "Use platform messaging, verify core KPIs, and complete independent due diligence before closing any transaction.",
+  ],
+  AR: [
+    post.excerpt.AR,
+    "يركز SHARKMKT على توثيق البيانات، التواصل الآمن، وهيكلة الصفقات بشكل أفضل للمشتري والبائع.",
+    "استخدم رسائل المنصة، تحقق من المؤشرات الأساسية، وأجرِ فحصًا مستقلًا قبل إتمام أي صفقة.",
+  ],
+});
+
+const toSlug = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
+
+const RAW_BLOG_POSTS = [
   {
     id: "news-1",
     category: "news",
@@ -186,7 +207,7 @@ export const BLOG_POSTS = [
     id: "news-4",
     category: "news",
     title: {
-      AR: "تحسينات تجربة المشتري في صفحة العروض",
+      AR: "تحسينات تجربة المشتري في صفحة المشاريع",
       EN: "Buyer experience improvements on listings",
     },
     excerpt: {
@@ -225,3 +246,12 @@ export const BLOG_POSTS = [
     coverImage: cover("نشرة بريدية مربحة", 4),
   },
 ];
+
+export const BLOG_POSTS = RAW_BLOG_POSTS.map((post) => ({
+  ...post,
+  slug: toSlug(post.title.EN) || post.id,
+  content: post.content || buildDefaultContent(post),
+}));
+
+export const findBlogPostBySlug = (slug) =>
+  BLOG_POSTS.find((post) => post.slug === slug || post.id === slug);

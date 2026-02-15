@@ -1,464 +1,340 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { businesses } from "../data/mockdata";
-import { getCustomListings } from "../data/listingsStore";
-import { getListingViews, incrementListingViews } from "../data/viewsStore";
 import { useCurrency } from "../context/CurrencyContext";
-import { useAuth } from "../context/AuthContext";
-import { PLAN_ACCESS } from "../data/plans";
-import LockedSection from "../components/LockedSection";
-import LoginModal from "../components/LoginModal";
+import {
+  DEFAULT_LISTINGS,
+  LISTING_CATEGORY_MAP,
+  MONETIZATION_MAP,
+} from "../data/marketplaceData";
+import {
+  getAllMarketplaceListings,
+  isListingReported,
+  isWishlistedListing,
+  marketplaceEvents,
+  reportMarketplaceListing,
+  toggleWishlistListing,
+} from "../data/marketplaceStore";
 
-const LABELS = {
+const TEXT = {
   EN: {
-    back: "Back to listings",
-    overviewTab: "Overview",
-    dataTab: "Data & Numbers",
-    techTab: "Tech",
-    partnershipTab: "Partnership",
-    contactTab: "Contact",
-    summary: "Summary",
-    highlights: "Highlights",
-    financials: "Financials",
-    analytics: "Traffic & Analytics",
-    assets: "Assets & Tech Stack",
-    seller: "Seller details / Data room",
-    partnership: "Partnership & Deal",
-    contactSection: "Contact",
-    statsTitle: "Key stats",
-    visits: "Monthly visits",
-    engagement: "Engagement rate",
-    stageLabel: "Stage",
-    contact: "Contact seller",
-    requestNda: "Request NDA",
-    askingPrice: "Asking Price",
-    location: "Location",
-    category: "Category",
-    projectAge: "Project age",
-    businessModel: "Business model",
+    back: "Back to browse",
+    notFound: "Listing not found",
+    overview: "Overview",
+    metrics: "Verified metrics",
+    assets: "Assets included",
+    trust: "Deal safety",
+    requestInfo: "Request info",
+    makeOffer: "Make offer",
+    messageSeller: "Message seller",
+    save: "Save listing",
+    saved: "Saved",
+    report: "Report listing",
+    reported: "Reported",
+    verified: "Verified",
+    escrow: "Optional escrow",
+    secure: "Safe communication",
+    disclaimer:
+      "Information is provided by sellers. Buyers should perform independent due diligence before closing.",
+    price: "Asking price",
     monthlyRevenue: "Monthly revenue",
     monthlyProfit: "Monthly profit",
-    profitMargin: "Profit margin",
-    pageViews: "Monthly page views",
-    sessions: "Monthly sessions",
-    channels: "Top channels",
-    stack: "Tech stack",
-    assetsList: "Included assets",
-    sellerNotes: "Seller notes",
-    dealType: "Deal type",
-    support: "Support period",
-    ndaInfo: "NDA available for subscribers",
-    loginToView: "Log in to view details",
-    loginToContact: "Log in to contact",
-    upgrade: "Upgrade to start contacting",
-    upgradeToUnlock: "Upgrade your plan to unlock details",
-    notFound: "Listing not found.",
-    goHome: "Go back",
+    traffic: "Monthly traffic",
+    age: "Business age",
+    monetization: "Monetization",
+    multiple: "Multiple",
+    region: "Region",
+    country: "Country",
+    techStack: "Tech stack",
+    language: "Business language",
+    submitOffer: "Send offer",
+    offerPlaceholder: "Enter offer amount",
+    reportReason: "Reason (optional)",
+    reportPlaceholder: "Describe why this listing should be reviewed",
   },
   AR: {
-    back: "الرجوع للعروض",
-    overviewTab: "نظرة عامة",
-    dataTab: "البيانات والأرقام",
-    techTab: "التقنية",
-    partnershipTab: "الشراكة",
-    contactTab: "التواصل",
-    summary: "الملخص",
-    highlights: "أبرز النقاط",
-    financials: "البيانات المالية",
-    analytics: "الزيارات والتحليلات",
-    assets: "الأصول والتقنية",
-    seller: "تفاصيل البائع / غرفة البيانات",
-    partnership: "الشراكة والصفقة",
-    contactSection: "التواصل",
-    statsTitle: "إحصائيات رئيسية",
-    visits: "الزيارات الشهرية",
-    engagement: "معدل التفاعل",
-    stageLabel: "المرحلة",
-    contact: "تواصل مع البائع",
-    requestNda: "طلب NDA",
-    askingPrice: "السعر المطلوب",
-    location: "الموقع",
-    category: "التصنيف",
-    projectAge: "عمر المشروع",
-    businessModel: "نموذج العمل",
+    back: "العودة للتصفح",
+    notFound: "الإعلان غير موجود",
+    overview: "نظرة عامة",
+    metrics: "مؤشرات موثقة",
+    assets: "الأصول المتضمنة",
+    trust: "أمان الصفقة",
+    requestInfo: "طلب معلومات",
+    makeOffer: "تقديم عرض",
+    messageSeller: "مراسلة البائع",
+    save: "حفظ الإعلان",
+    saved: "محفوظ",
+    report: "إبلاغ عن الإعلان",
+    reported: "تم الإبلاغ",
+    verified: "موثّق",
+    escrow: "ضمان اختياري",
+    secure: "تواصل آمن",
+    disclaimer:
+      "المعلومات مقدمة من البائعين. يجب إجراء فحص نافي للجهالة بشكل مستقل قبل إغلاق الصفقة.",
+    price: "السعر المطلوب",
     monthlyRevenue: "الإيراد الشهري",
     monthlyProfit: "الربح الشهري",
-    profitMargin: "هامش الربح",
-    pageViews: "مشاهدات شهرية",
-    sessions: "الجلسات الشهرية",
-    channels: "أهم القنوات",
-    stack: "التقنيات المستخدمة",
-    assetsList: "الأصول المتضمنة",
-    sellerNotes: "ملاحظات البائع",
-    dealType: "نوع الصفقة",
-    support: "مدة الدعم",
-    ndaInfo: "إتاحة NDA للمشتركين",
-    loginToView: "سجّل الدخول لعرض التفاصيل",
-    loginToContact: "سجّل الدخول للتواصل",
-    upgrade: "رقّ اشتراكك لبدء التواصل",
-    upgradeToUnlock: "رقّ اشتراكك لفتح بقية التفاصيل",
-    notFound: "الإعلان غير موجود.",
-    goHome: "العودة",
+    traffic: "الزيارات الشهرية",
+    age: "عمر المشروع",
+    monetization: "طريقة الربح",
+    multiple: "المضاعف",
+    region: "المنطقة",
+    country: "الدولة",
+    techStack: "التقنية",
+    language: "لغة المشروع",
+    submitOffer: "إرسال العرض",
+    offerPlaceholder: "أدخل قيمة العرض",
+    reportReason: "سبب البلاغ (اختياري)",
+    reportPlaceholder: "اشرح سبب المراجعة",
   },
 };
 
-const CATEGORY_LABELS = {
-  "website-content": { EN: "Content Website", AR: "موقع محتوى" },
-  "website-blog": { EN: "Blog", AR: "مدونة" },
-  "website-directory": { EN: "Directory", AR: "دليل" },
-  "website-community": { EN: "Community", AR: "مجتمع" },
-  "website-reviews": { EN: "Reviews", AR: "مراجعات" },
-  saas: { EN: "SaaS", AR: "SaaS" },
-  "app-ios": { EN: "iOS App", AR: "تطبيق iOS" },
-  "app-android": { EN: "Android App", AR: "تطبيق Android" },
-  "youtube-channel": { EN: "YouTube Channel", AR: "قناة يوتيوب" },
-  "social-instagram": { EN: "Instagram Account", AR: "حساب انستغرام" },
-  "social-x": { EN: "X Account", AR: "حساب X" },
-  "social-tiktok": { EN: "TikTok Account", AR: "حساب تيك توك" },
-  "social-snapchat": { EN: "Snapchat Account", AR: "حساب سناب شات" },
-  newsletter: { EN: "Newsletter", AR: "نشرة بريدية" },
-  "ai-tools": { EN: "AI Tools", AR: "أدوات AI" },
-  ecommerce: { EN: "E-commerce", AR: "تجارة إلكترونية" },
-  domains: { EN: "Domains", AR: "نطاقات" },
-  other: { EN: "Other", AR: "أخرى" },
-};
-
-const getCategoryLabel = (category, language) => {
-  const label = CATEGORY_LABELS[category];
-  return label?.[language] || label?.EN || category;
-};
-
-const buildMetrics = (price) => {
-  const monthlyRevenue = Math.round(price * 0.02);
-  const monthlyProfit = Math.round(price * 0.011);
-  const profitMargin = Math.min(
-    45,
-    Math.max(18, Math.round((monthlyProfit / monthlyRevenue) * 100))
-  );
-  const monthlyViews = Math.round(monthlyRevenue / 45);
-  return { monthlyRevenue, monthlyProfit, profitMargin, monthlyViews };
+const toNumber = (value) => {
+  const parsed = Number(String(value).replace(/[^0-9.]/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
 };
 
 export default function ListingDetails({ language = "EN" }) {
   const { id } = useParams();
-  const listing = useMemo(() => {
-    const combined = [...getCustomListings(), ...businesses];
-    return combined.find((item) => String(item.id) === String(id));
-  }, [id]);
-  const text = LABELS[language] || LABELS.EN;
+  const navigate = useNavigate();
+  const text = TEXT[language] || TEXT.EN;
   const isArabic = language === "AR";
   const locale = isArabic ? "ar-SA" : "en-US";
-  const navigate = useNavigate();
-  const { user, role } = useAuth();
-  const canAccess = PLAN_ACCESS[role]?.canViewFinancials ?? false;
-  const canRequestNda = PLAN_ACCESS[role]?.canRequestNda ?? false;
-  const canContact = PLAN_ACCESS[role]?.canContact ?? false;
-  const shouldLock = !user || !canAccess;
-  const { formatCurrency } = useCurrency();
-  const [showLoginModal, setShowLoginModal] = useState(false);
-  const [viewCount, setViewCount] = useState(() => getListingViews(id));
+  const { formatCurrency, toSAR, currency } = useCurrency();
+
+  const [listings, setListings] = useState(() => getAllMarketplaceListings(DEFAULT_LISTINGS));
+  const [saved, setSaved] = useState(() => isWishlistedListing(id));
+  const [reported, setReported] = useState(() => isListingReported(id));
+  const [offerAmount, setOfferAmount] = useState("");
+  const [reportReason, setReportReason] = useState("");
 
   useEffect(() => {
-    if (!listing) return;
-    const next = incrementListingViews(listing.id, listing.views);
-    setViewCount(next);
-  }, [listing]);
+    const refresh = () => {
+      setListings(getAllMarketplaceListings(DEFAULT_LISTINGS));
+      setSaved(isWishlistedListing(id));
+      setReported(isListingReported(id));
+    };
+
+    refresh();
+    window.addEventListener(marketplaceEvents.listings, refresh);
+    window.addEventListener(marketplaceEvents.wishlist, refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener(marketplaceEvents.listings, refresh);
+      window.removeEventListener(marketplaceEvents.wishlist, refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, [id]);
+
+  const listing = useMemo(
+    () => listings.find((item) => String(item.id) === String(id)),
+    [id, listings]
+  );
 
   if (!listing) {
     return (
-      <section className="listing-details">
+      <section className="market-page listing-details-v2">
         <div className="container listing-details-empty">
-          <h2>{text.notFound}</h2>
-          <button className="btn btn-dark" type="button" onClick={() => navigate("/")}>
-            {text.goHome}
+          <h1>{text.notFound}</h1>
+          <button className="btn btn-dark" type="button" onClick={() => navigate("/browse")}>
+            {text.back}
           </button>
         </div>
       </section>
     );
   }
 
-  const { monthlyRevenue, monthlyProfit, profitMargin, monthlyViews } =
-    buildMetrics(listing.price);
-  const listingViews = Number(viewCount) || getListingViews(listing.id, listing.views);
-  const engagementRate = listingViews
-    ? Math.min(100, Math.round((listing.likes / listingViews) * 100))
-    : 0;
-  const lockMessage = user ? text.upgradeToUnlock : text.loginToView;
-  const primaryActionLabel = !user
-    ? text.loginToContact
-    : canContact
-      ? text.contact
-      : text.upgrade;
-  const ageLabel = listing.ageYears
-    ? isArabic
-      ? `${listing.ageYears} سنوات`
-      : `${listing.ageYears} years`
-    : isArabic
-      ? "غير محدد"
-      : "N/A";
-  const stageLabel = listing.stage || (isArabic ? "غير محدد" : "N/A");
-  const categoryLabel = getCategoryLabel(listing.category, language);
+  const title = listing[`title${language}`] || listing.titleEN;
+  const summary = listing[`summary${language}`] || listing.summaryEN;
+  const categoryLabel =
+    LISTING_CATEGORY_MAP[listing.category]?.label?.[language] ||
+    LISTING_CATEGORY_MAP[listing.category]?.label?.EN ||
+    listing.category;
+  const monetizationLabel =
+    MONETIZATION_MAP[listing.monetization]?.label?.[language] ||
+    MONETIZATION_MAP[listing.monetization]?.label?.EN ||
+    listing.monetization;
 
-  const handlePrimaryAction = () => {
-    if (!user) {
-      setShowLoginModal(true);
-      return;
-    }
-    if (!canContact) {
-      navigate("/pricing");
-      return;
-    }
-    navigate("/inbox", { state: { listingId: listing.id } });
+  const sendRequestInfo = () => navigate(`/messages?listing=${listing.id}&intent=request-info`);
+  const sendMessageSeller = () => navigate(`/messages?listing=${listing.id}`);
+
+  const submitOffer = () => {
+    const offerInSAR = toSAR(toNumber(offerAmount), currency);
+    const intentQuery = offerInSAR ? "make-offer" : "request-info";
+    navigate(`/messages?listing=${listing.id}&intent=${intentQuery}`);
   };
 
-  const handleLockedAction = () => {
-    if (!user) {
-      setShowLoginModal(true);
-      return;
-    }
-    navigate("/pricing");
+  const toggleSave = () => {
+    const nextSaved = toggleWishlistListing(listing.id);
+    setSaved(nextSaved);
+  };
+
+  const reportListing = () => {
+    if (reported) return;
+    reportMarketplaceListing(listing.id, reportReason);
+    setReported(true);
   };
 
   return (
-    <section className="listing-details">
+    <section className="market-page listing-details-v2">
       <div className="container">
-        <Link className="back-link" to="/">
+        <Link className="back-link" to="/browse">
           {text.back}
         </Link>
 
-        <div className="details-tabs">
-          {[
-            { id: "overview", label: text.overviewTab },
-            { id: "data", label: text.dataTab },
-            { id: "tech", label: text.techTab },
-            { id: "partnership", label: text.partnershipTab },
-            { id: "contact", label: text.contactTab },
-          ].map((tab) => (
-            <a key={tab.id} className="tab-chip" href={`#${tab.id}`}>
-              {tab.label}
-            </a>
-          ))}
+        <div className="listing-details-v2-head">
+          <div>
+            <span className="pill">{categoryLabel}</span>
+            <h1>{title}</h1>
+            <p className="muted">{summary}</p>
+          </div>
+          <div className="market-trust-tags">
+            {listing.verified ? <span>{text.verified}</span> : null}
+            <span>{text.escrow}</span>
+            <span>{text.secure}</span>
+          </div>
         </div>
 
-        <div className="details-layout">
-          <div className="details-main">
-            <div className="details-header" id="overview">
-              <span className="pill">{categoryLabel}</span>
-              <h1>{listing.title}</h1>
-              <p className="muted">
-                {text.location}: {listing.location}
-              </p>
-            </div>
+        <div className="listing-details-v2-layout">
+          <main className="listing-details-v2-main">
             <div className="details-image">
-              <img src={listing.image} alt={listing.title} />
+              <img src={listing.image} alt={title} />
             </div>
 
-            <section className="details-card details-stats">
-              <h3>{text.statsTitle}</h3>
-              <div className="stats-grid">
+            <section className="details-card" id="overview">
+              <h2>{text.overview}</h2>
+              <div className="detail-rows">
                 <div>
-                  <span className="muted">{text.visits}</span>
-                  <strong>{monthlyViews.toLocaleString(locale)}</strong>
+                  <span className="muted">{text.country}</span>
+                  <strong>{listing.country}</strong>
                 </div>
                 <div>
-                  <span className="muted">{text.engagement}</span>
-                  <strong>{engagementRate}%</strong>
+                  <span className="muted">{text.region}</span>
+                  <strong>{listing.region}</strong>
                 </div>
                 <div>
-                  <span className="muted">{text.stageLabel}</span>
-                  <strong>{stageLabel}</strong>
+                  <span className="muted">{text.age}</span>
+                  <strong>
+                    {isArabic
+                      ? `${listing.ageMonths} شهر`
+                      : `${listing.ageMonths} months`}
+                  </strong>
+                </div>
+                <div>
+                  <span className="muted">{text.language}</span>
+                  <strong>{listing.businessLanguage || "AR / EN"}</strong>
                 </div>
               </div>
             </section>
 
-            <section className="details-card">
-              <h3>{text.summary}</h3>
-              <p className="muted">
-                {isArabic
-                  ? "فرصة رقمية بمؤشرات نمو ثابتة مع قابلية توسع واضحة داخل السوق السعودي."
-                  : "A verified digital opportunity with steady growth and clear expansion potential."}
-              </p>
-            </section>
-
-            <section className="details-card">
-              <h3>{text.highlights}</h3>
-              <ul className="details-list">
-                <li>
-                  {isArabic
-                    ? "طلب قوي داخل السوق المحلي مع تفاعل مستمر."
-                    : "Strong local demand with consistent engagement."}
-                </li>
-                <li>
-                  {isArabic
-                    ? "نموذج ربحي واضح وقابل للتوسع."
-                    : "Clear monetization model and scalable roadmap."}
-                </li>
-                <li>
-                  {isArabic
-                    ? "عمليات تشغيلية مبسطة وفريق صغير."
-                    : "Lean operations with a small, efficient team."}
-                </li>
-              </ul>
-            </section>
-
-            <LockedSection
-              title={text.financials}
-              isLocked={shouldLock}
-              message={lockMessage}
-              onAction={handleLockedAction}
-            >
-              <div className="metric-list" id="data">
+            <section className="details-card" id="metrics">
+              <h2>{text.metrics}</h2>
+              <div className="metric-list">
                 <div>
                   <span className="muted">{text.monthlyRevenue}</span>
-                  <strong>{formatCurrency(monthlyRevenue, { locale })}</strong>
+                  <strong>{formatCurrency(listing.monthlyRevenueSAR, { locale })}</strong>
                 </div>
                 <div>
                   <span className="muted">{text.monthlyProfit}</span>
-                  <strong>{formatCurrency(monthlyProfit, { locale })}</strong>
+                  <strong>{formatCurrency(listing.monthlyProfitSAR, { locale })}</strong>
                 </div>
                 <div>
-                  <span className="muted">{text.profitMargin}</span>
-                  <strong>{profitMargin}%</strong>
+                  <span className="muted">{text.traffic}</span>
+                  <strong>{Number(listing.monthlyTraffic || 0).toLocaleString(locale)}</strong>
+                </div>
+                <div>
+                  <span className="muted">{text.multiple}</span>
+                  <strong>{Number(listing.multiple || 0).toFixed(2)}x</strong>
+                </div>
+                <div>
+                  <span className="muted">{text.monetization}</span>
+                  <strong>{monetizationLabel}</strong>
                 </div>
               </div>
-            </LockedSection>
+            </section>
 
-            <LockedSection
-              title={text.analytics}
-              isLocked={shouldLock}
-              message={lockMessage}
-              onAction={handleLockedAction}
-            >
-              <div className="metric-list">
+            <section className="details-card" id="assets">
+              <h2>{text.assets}</h2>
+              <ul className="details-list">
+                {(listing.assetsIncluded || []).map((asset) => (
+                  <li key={asset}>{asset}</li>
+                ))}
+              </ul>
+              <div className="detail-rows">
                 <div>
-                  <span className="muted">{text.pageViews}</span>
-                  <strong>{monthlyViews.toLocaleString(locale)}</strong>
-                </div>
-                <div>
-                  <span className="muted">{text.sessions}</span>
-                  <strong>{Math.round(monthlyViews * 1.6).toLocaleString(locale)}</strong>
-                </div>
-                <div>
-                  <span className="muted">{text.channels}</span>
-                  <strong>{isArabic ? "بحث عضوي · إحالات" : "Organic · Referral"}</strong>
+                  <span className="muted">{text.techStack}</span>
+                  <strong>{(listing.techStack || []).join(" · ")}</strong>
                 </div>
               </div>
-            </LockedSection>
+            </section>
 
-            <LockedSection
-              title={text.assets}
-              isLocked={shouldLock}
-              message={lockMessage}
-              onAction={handleLockedAction}
-            >
-              <div className="detail-rows" id="tech">
-                <div>
-                  <span className="muted">{text.stack}</span>
-                  <strong>{isArabic ? "React · Supabase · Vite" : "React · Supabase · Vite"}</strong>
-                </div>
-                <div>
-                  <span className="muted">{text.assetsList}</span>
-                  <strong>
-                    {isArabic
-                      ? "الدومين، قاعدة البيانات، التصميم"
-                      : "Domain, database, design assets"}
-                  </strong>
-                </div>
+            <section className="details-card" id="trust">
+              <h2>{text.trust}</h2>
+              <p className="muted">{text.disclaimer}</p>
+              <div className="market-trust-tags">
+                {listing.verified ? <span>{text.verified}</span> : null}
+                {listing.escrowEligible ? <span>{text.escrow}</span> : null}
+                {listing.safeCommunication ? <span>{text.secure}</span> : null}
               </div>
-            </LockedSection>
 
-            <LockedSection
-              title={text.partnership}
-              isLocked={shouldLock}
-              message={lockMessage}
-              onAction={handleLockedAction}
-            >
-              <div className="detail-rows" id="partnership">
-                <div>
-                  <span className="muted">{text.dealType}</span>
-                  <strong>
-                    {listing.dealType === "partner"
-                      ? isArabic
-                        ? "شراكة"
-                        : "Partnership"
-                      : listing.dealType === "investment"
-                        ? isArabic
-                          ? "استثمار"
-                          : "Investment"
-                        : isArabic
-                          ? "بيع كامل"
-                          : "Full sale"}
-                  </strong>
-                </div>
-                <div>
-                  <span className="muted">{text.support}</span>
-                  <strong>
-                    {isArabic ? "30 يوم دعم بعد البيع" : "30 days post-sale support"}
-                  </strong>
-                </div>
-              </div>
-            </LockedSection>
+              <label className="field-group field-group-full">
+                <span>{text.reportReason}</span>
+                <textarea
+                  rows="2"
+                  value={reportReason}
+                  onChange={(event) => setReportReason(event.target.value)}
+                  placeholder={text.reportPlaceholder}
+                />
+              </label>
+            </section>
+          </main>
 
-            <LockedSection
-              title={text.contactSection}
-              isLocked={shouldLock}
-              message={lockMessage}
-              onAction={handleLockedAction}
-            >
-              <div className="detail-rows" id="contact">
-                <div>
-                  <span className="muted">{text.sellerNotes}</span>
-                  <strong>
-                    {isArabic
-                      ? "التواصل يتم عبر صندوق الوارد داخل المنصة."
-                      : "All communication happens via the built-in inbox."}
-                  </strong>
-                </div>
-                <div>
-                  <span className="muted">{text.ndaInfo}</span>
-                  <strong>{isArabic ? "متاح للمشتركين" : "Available for subscribers"}</strong>
-                </div>
-              </div>
-            </LockedSection>
-          </div>
-
-          <aside className="details-sidebar">
+          <aside className="listing-details-v2-sidebar">
             <div className="details-sidebar-card">
               <div className="details-price">
-                <span className="muted">{text.askingPrice}</span>
-                <strong>{formatCurrency(listing.price, { locale })}</strong>
+                <span className="muted">{text.price}</span>
+                <strong>{formatCurrency(listing.askingPriceSAR, { locale })}</strong>
               </div>
-              <button className="btn btn-dark btn-block" type="button" onClick={handlePrimaryAction}>
-                {primaryActionLabel}
-              </button>
-              {user && canRequestNda ? (
-                <button className="btn btn-ghost btn-block" type="button">
-                  {text.requestNda}
+
+              <div className="listing-actions-stack">
+                <button className="btn btn-dark btn-block" type="button" onClick={sendRequestInfo}>
+                  {text.requestInfo}
                 </button>
-              ) : null}
-              <div className="quick-info">
-                <div>
-                  <span className="muted">{text.category}</span>
-                  <strong>{categoryLabel}</strong>
-                </div>
-                <div>
-                  <span className="muted">{text.location}</span>
-                  <strong>{listing.location}</strong>
-                </div>
-                <div>
-                  <span className="muted">{text.projectAge}</span>
-                  <strong>{ageLabel}</strong>
-                </div>
+                <button className="btn btn-ghost btn-block" type="button" onClick={sendMessageSeller}>
+                  {text.messageSeller}
+                </button>
+              </div>
+
+              <div className="listing-offer-box">
+                <label>{text.makeOffer}</label>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder={text.offerPlaceholder}
+                  value={offerAmount}
+                  onChange={(event) => setOfferAmount(event.target.value)}
+                />
+                <button className="btn btn-dark btn-block" type="button" onClick={submitOffer}>
+                  {text.submitOffer}
+                </button>
+              </div>
+
+              <div className="listing-side-actions">
+                <button className="btn btn-ghost btn-block" type="button" onClick={toggleSave}>
+                  {saved ? text.saved : text.save}
+                </button>
+                <button
+                  className="btn btn-ghost btn-block"
+                  type="button"
+                  onClick={reportListing}
+                  disabled={reported}
+                >
+                  {reported ? text.reported : text.report}
+                </button>
               </div>
             </div>
           </aside>
         </div>
       </div>
-      <LoginModal
-        open={showLoginModal}
-        language={language}
-        onClose={() => setShowLoginModal(false)}
-      />
     </section>
   );
 }

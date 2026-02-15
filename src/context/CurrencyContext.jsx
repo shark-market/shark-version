@@ -5,12 +5,10 @@ const DEFAULT_CURRENCY = "SAR";
 const RATE_TO_SAR = {
   SAR: 1,
   USD: 3.75,
-  EUR: 4.1,
 };
 const CURRENCY_META = {
   SAR: { label: "SAR", symbol: "ر.س", flag: "🇸🇦" },
   USD: { label: "USD", symbol: "$", flag: "🇺🇸" },
-  EUR: { label: "EUR", symbol: "€", flag: "🇪🇺" },
 };
 
 const CurrencyContext = createContext(null);

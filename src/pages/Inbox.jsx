@@ -7,7 +7,7 @@ import { PLAN_ACCESS } from "../data/plans";
 const LABELS = {
   EN: {
     title: "Inbox",
-    upgrade: "Upgrade to access the inbox",
+    upgrade: "Full details are available after subscribing.",
     upgradeButton: "View pricing",
     placeholder: "Select a conversation to view messages.",
     send: "Send message",
@@ -17,7 +17,7 @@ const LABELS = {
   },
   AR: {
     title: "صندوق الوارد",
-    upgrade: "قم بالترقية للوصول لصندوق الوارد",
+    upgrade: "يمكننا مشاركة التفاصيل الكاملة بعد الاشتراك.",
     upgradeButton: "عرض الأسعار",
     placeholder: "اختر محادثة لعرض الرسائل.",
     send: "إرسال الرسالة",
@@ -74,11 +74,11 @@ const buildPartnerConversation = (partnerTitle, partnerSubtitle, language) => {
 
 export default function Inbox({ language = "EN" }) {
   const text = LABELS[language] || LABELS.EN;
-  const { user, role } = useAuth();
+  const { user, planRole } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const canMessage = PLAN_ACCESS[role]?.canMessage ?? false;
-  const canOpen = role !== "free";
+  const canMessage = PLAN_ACCESS[planRole]?.canMessage ?? false;
+  const canOpen = planRole !== "free";
 
   const [conversations, setConversations] = useState([
     {

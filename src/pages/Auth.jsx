@@ -78,9 +78,9 @@ const TEXT = {
     investorTitle: "المستثمر",
     sellerTitle: "البائع",
     investorHighlights: [
-      "عروض موثّقة للأعمال",
+      "مشاريع موثّقة للأعمال",
       "بحث متقدم في السوق",
-      "حفظ العروض وعمليات البحث",
+      "حفظ المشاريع وعمليات البحث",
     ],
     sellerHighlights: [
       "تقييم مجاني للمشروع",
@@ -89,8 +89,8 @@ const TEXT = {
     ],
     stats: [
       { label: "إجمالي المبيعات", value: 565745623, type: "currency", icon: "cart" },
-      { label: "عدد العروض المباعة", value: 2555, type: "count", icon: "window" },
-      { label: "العروض الحالية", value: 210, type: "count", icon: "globe" },
+      { label: "عدد المشاريع المباعة", value: 2555, type: "count", icon: "window" },
+      { label: "المشاريع الحالية", value: 210, type: "count", icon: "globe" },
     ],
   },
 };
@@ -101,7 +101,7 @@ export default function Auth({ language = "EN" }) {
   const locale = language === "AR" ? "ar-SA" : "en-US";
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, profile, loading, signInMock } = useAuth();
+  const { user, loading, signInMock, onboardingCompleted } = useAuth();
   const initialMode = location.state?.mode || "signup";
   const [activeMode, setActiveMode] = useState(initialMode);
   const [formState, setFormState] = useState({
@@ -120,13 +120,13 @@ export default function Auth({ language = "EN" }) {
   useEffect(() => {
     if (loading) return;
     if (user) {
-      if (profile?.first_name && profile?.last_name) {
-        navigate("/", { replace: true });
-      } else {
+      if (!onboardingCompleted) {
         navigate("/onboarding", { replace: true });
+      } else {
+        navigate("/partner", { replace: true });
       }
     }
-  }, [loading, navigate, profile, user]);
+  }, [loading, navigate, onboardingCompleted, user]);
 
   useEffect(() => {
     setStatus({ type: "", message: "" });
@@ -150,7 +150,7 @@ export default function Auth({ language = "EN" }) {
       if (activeMode === "login") {
         if (signInMock?.(formState.email, formState.password)) {
           setStatus({ type: "success", message: text.successLogin });
-          navigate("/", { replace: true });
+          navigate("/partner", { replace: true });
           return;
         }
         const { error } = await supabase.auth.signInWithPassword({
@@ -248,7 +248,7 @@ export default function Auth({ language = "EN" }) {
           {text.back}
         </button>
         <div className="logo">
-          <img className="logo-img" src="/sharkmkt-logo.png" alt="Shark Market" />
+          <img className="logo-img" src="/sharkmkt-logo.svg" alt="Shark Market" />
         </div>
       </header>
 

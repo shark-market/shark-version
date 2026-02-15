@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
-import PricingPlans from "../components/pricing/PricingPlans";
-import SuccessFeeSection from "../components/pricing/SuccessFeeSection";
-import Footer from "../components/Footer";
-import { TEXT } from "../data/translations";
-import { useAuth } from "../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 import LoginModal from "../components/LoginModal";
+import { useAuth } from "../context/AuthContext";
+import { useCurrency } from "../context/CurrencyContext";
+import { getUI } from "../data/uiDictionary";
 
 export default function Pricing({ language = "EN" }) {
-  const text = TEXT[language] || TEXT.EN;
+  const ui = getUI(language);
+  const text = ui.pricing;
+  const navigate = useNavigate();
   const { user, setRole, setPlanInterval, planInterval } = useAuth();
+  const { formatCurrency } = useCurrency();
+
   const [interval, setInterval] = useState(planInterval || "monthly");
   const [showLoginModal, setShowLoginModal] = useState(false);
 
@@ -18,103 +21,94 @@ export default function Pricing({ language = "EN" }) {
     }
   }, [interval, planInterval]);
 
-  const handleSelectPlan = (planId) => {
+  const handleSelectPlan = (planKey) => {
     if (!user) {
       setShowLoginModal(true);
       return;
     }
-    setRole?.(planId);
+
+    setRole?.(planKey);
     setPlanInterval?.(interval);
+    navigate("/account");
   };
 
   return (
-    <div className="page">
-      <section className="pricing-section">
-        <div className="container pricing-header">
-          <h2>{text.pricingTitle}</h2>
-          <p className="muted">{text.pricingSubtitle}</p>
-          <div className="pricing-toggle">
-            <div className="toggle-pill">
-              <button
-                className={interval === "monthly" ? "active" : ""}
-                type="button"
-                onClick={() => setInterval("monthly")}
-              >
-                {language === "AR" ? "شهري" : "Monthly"}
-              </button>
-              <button
-                className={interval === "yearly" ? "active" : ""}
-                type="button"
-                onClick={() => setInterval("yearly")}
-              >
-                {language === "AR" ? "سنوي" : "Yearly"}
-              </button>
-              <span className="toggle-badge">
-                {language === "AR" ? "وفر شهرين" : "Save 2 months"}
-              </span>
-            </div>
+    <section className="market-page pricing-page-v2">
+      <div className="container pricing-v2-header">
+        <h1>{text.title}</h1>
+        <p className="muted">{text.subtitle}</p>
+
+        <div className="pricing-toggle">
+          <div className="toggle-pill">
+            <button
+              className={interval === "monthly" ? "active" : ""}
+              type="button"
+              onClick={() => setInterval("monthly")}
+            >
+              {text.monthly}
+            </button>
+            <button
+              className={interval === "yearly" ? "active" : ""}
+              type="button"
+              onClick={() => setInterval("yearly")}
+            >
+              {text.yearly}
+            </button>
+            <span className="toggle-badge">{text.save}</span>
           </div>
         </div>
-        <div className="container pricing-groups">
-          <PricingPlans
-            language={language}
-            interval={interval}
-            onSelectPlan={handleSelectPlan}
-          />
-          <SuccessFeeSection language={language} />
-          <section className="pricing-compare">
-            <div className="pricing-group-header">
-              <h3>{language === "AR" ? "مقارنة مختصرة" : "Quick Comparison"}</h3>
-              <p className="muted">
-                {language === "AR"
-                  ? "كل الخطط بالريال السعودي مع خيار شهري أو سنوي."
-                  : "All plans are priced in SAR with monthly or yearly options."}
+      </div>
+
+      <div className="container pricing-v2-grid">
+        {text.plans.map((plan) => {
+          const amountSAR = interval === "yearly" ? plan.yearly : plan.monthly;
+          const isFeatured = plan.key === "plus";
+          const priceLabel =
+            amountSAR === 0
+              ? language === "AR"
+                ? "مجاني"
+                : "Free"
+              : formatCurrency(amountSAR, {
+                  locale: language === "AR" ? "ar-SA" : "en-US",
+                });
+
+          return (
+            <article className={`pricing-card ${isFeatured ? "featured" : ""}`} key={plan.key}>
+              {isFeatured ? (
+                <span className="pricing-popular-badge">
+                  {language === "AR" ? "الأكثر شيوعًا" : "Most Popular"}
+                </span>
+              ) : null}
+              <h3>{plan.name}</h3>
+              <p className="pricing-price">
+                <strong>{priceLabel}</strong>
+                <small>{interval === "yearly" ? text.periodYear : text.period}</small>
               </p>
-            </div>
-            <div className="compare-table">
-              <div className="compare-row header">
-                <span />
-                <span>{language === "AR" ? "مجاني" : "Free"}</span>
-                <span>{language === "AR" ? "أساسي" : "Basic"}</span>
-                <span>{language === "AR" ? "برو" : "Pro"}</span>
-              </div>
-              {[
-                {
-                  label: language === "AR" ? "التواصل" : "Contact",
-                  free: "—",
-                  plus: "✓",
-                  pro: "✓",
-                },
-                {
-                  label: language === "AR" ? "صندوق الوارد" : "Inbox",
-                  free: "—",
-                  plus: "✓",
-                  pro: "✓",
-                },
-                {
-                  label: language === "AR" ? "طلب NDA" : "Request NDA",
-                  free: "—",
-                  plus: language === "AR" ? "محدود" : "Limited",
-                  pro: language === "AR" ? "غير محدود" : "Unlimited",
-                },
-              ].map((row) => (
-                <div className="compare-row" key={row.label}>
-                  <span>{row.label}</span>
-                  <span>{row.free}</span>
-                  <span>{row.plus}</span>
-                  <span>{row.pro}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-        </div>
-      </section>
-      <Footer text={text} language={language} />
+              <p className="muted">{plan.description}</p>
+              <ul>
+                {plan.features.map((feature) => (
+                  <li key={feature}>{feature}</li>
+                ))}
+              </ul>
+              <button className="btn btn-dark btn-block" type="button" onClick={() => handleSelectPlan(plan.key)}>
+                {text.cta}
+              </button>
+            </article>
+          );
+        })}
+      </div>
+
+      <div className="container pricing-v2-footer">
+        <button className="btn btn-ghost" type="button" onClick={() => navigate("/contact")}>
+          {text.contactSales}
+        </button>
+      </div>
+
       <LoginModal
         open={showLoginModal}
         language={language}
         onClose={() => setShowLoginModal(false)}
       />
-    </div>
+    </section>
   );
 }

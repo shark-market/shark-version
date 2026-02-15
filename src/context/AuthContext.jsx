@@ -1,14 +1,18 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
+import {
+  ADMIN_EMAIL,
+  ensureUserForAuth,
+  getUserById,
+  upsertUser,
+  usersEvents,
+} from "../services/usersService";
 
 const AuthContext = createContext(null);
 const MOCK_USER_KEY = "sm-mock-user";
-const ROLE_KEY = "sm-role";
+const ACCESS_ROLE_KEY = "sm-access-role";
 const PLAN_INTERVAL_KEY = "sm-plan-interval";
-const ADMIN_CREDENTIALS = {
-  email: "admin@sharkmarket.com",
-  password: "Admin12345",
-};
+const ADMIN_PASSWORD = "Admin12345";
 
 const clearSupabaseStorage = () => {
   if (typeof window === "undefined") return;
@@ -37,7 +41,7 @@ const fetchProfile = async (userId) => {
 
 const getStoredRole = () => {
   if (typeof window === "undefined") return "";
-  return window.localStorage.getItem(ROLE_KEY) || "";
+  return window.localStorage.getItem(ACCESS_ROLE_KEY) || "";
 };
 
 const getStoredPlanInterval = () => {
@@ -59,10 +63,48 @@ const getMockUser = () => {
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [appUser, setAppUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [mockUser, setMockUser] = useState(getMockUser);
-  const [roleOverride, setRoleOverride] = useState(getStoredRole);
+  const [accessRole, setAccessRole] = useState(getStoredRole);
   const [planInterval, setPlanIntervalState] = useState(getStoredPlanInterval);
+
+  const ensureAppUserState = (userLike, profileLike = null) => {
+    if (!userLike?.id || !userLike?.email) {
+      setAppUser(null);
+      return null;
+    }
+
+    const base = ensureUserForAuth({
+      id: userLike.id,
+      email: userLike.email,
+    });
+
+    if (!base) {
+      setAppUser(null);
+      return null;
+    }
+
+    const hasBasicProfile = Boolean(profileLike?.first_name && profileLike?.last_name);
+    const next = upsertUser({
+      ...base,
+      email: userLike.email,
+      firstName: base.firstName || profileLike?.first_name || "",
+      lastName: base.lastName || profileLike?.last_name || "",
+      country: base.country || profileLike?.country || "",
+      city: base.city || profileLike?.company_name || "",
+      phoneCode: base.phoneCode || "+966",
+      phoneNumber:
+        base.phoneNumber ||
+        String(profileLike?.phone || "")
+          .replace(/[^\d]/g, "")
+          .slice(-12),
+      onboardingCompleted: base.onboardingCompleted || hasBasicProfile,
+    });
+
+    setAppUser(next);
+    return next;
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -73,6 +115,7 @@ export function AuthProvider({ children }) {
         window.localStorage.removeItem("sm-logged-out");
         setSession(null);
         setProfile(null);
+        setAppUser(null);
         setLoading(false);
         return () => {
           isMounted = false;
@@ -88,9 +131,11 @@ export function AuthProvider({ children }) {
         const nextProfile = await fetchProfile(nextSession.user.id);
         if (isMounted) {
           setProfile(nextProfile);
+          ensureAppUserState(nextSession.user, nextProfile);
         }
       } else {
         setProfile(null);
+        setAppUser(null);
       }
       if (isMounted) {
         setLoading(false);
@@ -103,8 +148,10 @@ export function AuthProvider({ children }) {
         if (nextSession?.user) {
           const nextProfile = await fetchProfile(nextSession.user.id);
           setProfile(nextProfile);
+          ensureAppUserState(nextSession.user, nextProfile);
         } else {
           setProfile(null);
+          setAppUser(null);
         }
         setLoading(false);
       }
@@ -118,20 +165,51 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+
     const handleUpdate = () => {
-      setMockUser(getMockUser());
-      setRoleOverride(getStoredRole());
-      setPlanIntervalState(getStoredPlanInterval());
+      const nextMock = getMockUser();
+      const nextRole = getStoredRole();
+      const nextInterval = getStoredPlanInterval();
+
+      setMockUser(nextMock);
+      setAccessRole(nextRole);
+      setPlanIntervalState(nextInterval);
+
+      const sourceUser =
+        nextMock || (session?.user?.id && session?.user?.email ? session.user : null);
+
+      if (!sourceUser?.id) {
+        setAppUser(null);
+        return;
+      }
+
+      const fresh = getUserById(sourceUser.id);
+      if (fresh) {
+        setAppUser(fresh);
+        return;
+      }
+
+      if (sourceUser.email) {
+        const created = ensureUserForAuth({
+          id: sourceUser.id,
+          email: sourceUser.email,
+        });
+        if (created) setAppUser(created);
+      }
     };
+
+    handleUpdate();
     window.addEventListener("storage", handleUpdate);
     window.addEventListener("sm-mock-auth", handleUpdate);
     window.addEventListener("sm-role-update", handleUpdate);
+    window.addEventListener(usersEvents.changed, handleUpdate);
     return () => {
       window.removeEventListener("storage", handleUpdate);
       window.removeEventListener("sm-mock-auth", handleUpdate);
       window.removeEventListener("sm-role-update", handleUpdate);
+      window.removeEventListener(usersEvents.changed, handleUpdate);
     };
-  }, []);
+  }, [session?.user?.email, session?.user?.id]);
 
   const effectiveUser = mockUser || session?.user || null;
   const effectiveProfile = mockUser
@@ -142,46 +220,70 @@ export function AuthProvider({ children }) {
         last_name: "User",
         role: "admin",
         subscription_tier: "pro",
+        onboarding_completed: true,
       }
     : profile;
 
   const role = useMemo(() => {
-    if (mockUser?.role === "admin") return "admin";
-    if (!effectiveUser) return "guest";
-    if (roleOverride) return roleOverride;
+    if (!effectiveUser?.email) return "guest";
+    if (appUser?.role === "admin") return "admin";
+    if (String(effectiveUser.email).trim().toLowerCase() === ADMIN_EMAIL) {
+      return "admin";
+    }
+    return "user";
+  }, [appUser?.role, effectiveUser]);
+
+  const planRole = useMemo(() => {
+    if (role === "admin") return "admin";
+    if (accessRole) return accessRole;
     if (effectiveProfile?.subscription_tier === "pro") return "pro";
     if (effectiveProfile?.subscription_tier === "plus") return "plus";
     return "free";
-  }, [effectiveProfile, effectiveUser, mockUser, roleOverride]);
+  }, [accessRole, effectiveProfile?.subscription_tier, role]);
+
+  const onboardingCompleted = Boolean(
+    appUser?.onboardingCompleted || effectiveProfile?.onboarding_completed
+  );
 
   const value = useMemo(
     () => ({
       session,
       user: effectiveUser,
       profile: effectiveProfile,
+      appUser,
       loading,
       role,
+      planRole,
+      onboardingCompleted,
       planInterval,
       refreshProfile: async (userId) => {
         const nextProfile = await fetchProfile(userId);
         setProfile(nextProfile);
+        if (effectiveUser?.id === userId) {
+          ensureAppUserState(effectiveUser, nextProfile);
+        }
         return nextProfile;
       },
       signInMock: (email, password) => {
         if (
-          email?.toLowerCase() === ADMIN_CREDENTIALS.email &&
-          password === ADMIN_CREDENTIALS.password
+          email?.toLowerCase() === ADMIN_EMAIL &&
+          password === ADMIN_PASSWORD
         ) {
           const nextMock = {
             id: "admin",
-            email: ADMIN_CREDENTIALS.email,
+            email: ADMIN_EMAIL,
             role: "admin",
           };
           setMockUser(nextMock);
-          setRoleOverride("admin");
+          setAccessRole("admin");
+          ensureAppUserState(nextMock, {
+            first_name: "Admin",
+            last_name: "User",
+            onboarding_completed: true,
+          });
           if (typeof window !== "undefined") {
             window.localStorage.setItem(MOCK_USER_KEY, JSON.stringify(nextMock));
-            window.localStorage.setItem(ROLE_KEY, "admin");
+            window.localStorage.setItem(ACCESS_ROLE_KEY, "admin");
             window.dispatchEvent(new Event("sm-mock-auth"));
           }
           return true;
@@ -189,12 +291,12 @@ export function AuthProvider({ children }) {
         return false;
       },
       setRole: (nextRole) => {
-        setRoleOverride(nextRole);
+        setAccessRole(nextRole);
         if (typeof window !== "undefined") {
           if (nextRole) {
-            window.localStorage.setItem(ROLE_KEY, nextRole);
+            window.localStorage.setItem(ACCESS_ROLE_KEY, nextRole);
           } else {
-            window.localStorage.removeItem(ROLE_KEY);
+            window.localStorage.removeItem(ACCESS_ROLE_KEY);
           }
           window.dispatchEvent(new Event("sm-role-update"));
         }
@@ -209,12 +311,13 @@ export function AuthProvider({ children }) {
       signOut: async () => {
         setSession(null);
         setProfile(null);
+        setAppUser(null);
         setMockUser(null);
-        setRoleOverride("");
+        setAccessRole("");
         if (typeof window !== "undefined") {
           window.localStorage.setItem("sm-logged-out", "1");
           window.localStorage.removeItem(MOCK_USER_KEY);
-          window.localStorage.removeItem(ROLE_KEY);
+          window.localStorage.removeItem(ACCESS_ROLE_KEY);
           window.localStorage.removeItem(PLAN_INTERVAL_KEY);
         }
         const { error } = await supabase.auth.signOut({ scope: "global" });
@@ -224,7 +327,16 @@ export function AuthProvider({ children }) {
         clearSupabaseStorage();
       },
     }),
-    [effectiveProfile, effectiveUser, loading, planInterval, role]
+    [
+      appUser,
+      effectiveProfile,
+      effectiveUser,
+      loading,
+      onboardingCompleted,
+      planInterval,
+      planRole,
+      role,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

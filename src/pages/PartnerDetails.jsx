@@ -122,7 +122,7 @@ export default function PartnerDetails({ language = "EN" }) {
   const text = LABELS[language] || LABELS.EN;
   const isArabic = language === "AR";
   const navigate = useNavigate();
-  const { user, role } = useAuth();
+  const { user, planRole } = useAuth();
   const { formatCurrency } = useCurrency();
   const [showLoginModal, setShowLoginModal] = useState(false);
 
@@ -144,7 +144,7 @@ export default function PartnerDetails({ language = "EN" }) {
     );
   }
 
-  const canContact = PLAN_ACCESS[role]?.canContact ?? false;
+  const canContact = PLAN_ACCESS[planRole]?.canContact ?? false;
   const primaryActionLabel = !user
     ? text.loginToContact
     : canContact

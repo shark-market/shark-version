@@ -1,47 +1,34 @@
-import Footer from "../components/Footer";
-import { TEXT } from "../data/translations";
+import { getUI } from "../data/uiDictionary";
 
 export default function Contact({ language = "EN" }) {
-  const text = TEXT[language] || TEXT.EN;
-  const isArabic = language === "AR";
+  const ui = getUI(language);
+  const text = ui.legal.contact;
 
   return (
-    <div className="page">
-      <section className="legal-section" id="contact">
-        <div className="container legal-card">
-          <h2>{isArabic ? "تواصل معنا" : "Contact Us"}</h2>
-          <p className="muted">
-            {isArabic
-              ? "يسعدنا تواصلك معنا لأي استفسار يتعلق بالمنصة أو الدعم."
-              : "We’re here to help with any questions about the platform or support."}
-          </p>
-          <div className="contact-details">
-            <div>
-              <span className="muted">
-                {isArabic ? "البريد الإلكتروني" : "Email"}
-              </span>
-              <strong>hello@sharkmarket.com</strong>
-            </div>
-            <div>
-              <span className="muted">
-                {isArabic ? "الهاتف" : "Phone"}
-              </span>
-              <strong>+966 555 555 555</strong>
-            </div>
-            <div>
-              <span className="muted">
-                {isArabic ? "ساعات العمل" : "Business Hours"}
-              </span>
-              <strong>
-                {isArabic
-                  ? "الأحد - الخميس، 9 صباحًا - 6 مساءً"
-                  : "Sunday - Thursday, 9AM - 6PM"}
-              </strong>
-            </div>
+    <section className="market-page legal-page">
+      <div className="container market-page-header">
+        <div>
+          <h1>{text.title}</h1>
+          <p className="muted">{text.subtitle}</p>
+        </div>
+      </div>
+
+      <div className="container legal-card">
+        <div className="contact-details">
+          <div>
+            <span className="muted">{text.emailLabel}</span>
+            <strong>{text.email}</strong>
+          </div>
+          <div>
+            <span className="muted">{text.phoneLabel}</span>
+            <strong>{text.phone}</strong>
+          </div>
+          <div>
+            <span className="muted">{text.hoursLabel}</span>
+            <strong>{text.hours}</strong>
           </div>
         </div>
-      </section>
-      <Footer text={text} language={language} />
-    </div>
+      </div>
+    </section>
   );
 }

@@ -1,47 +1,40 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import brandLogo from "../assets/brand/sharkmkt-logo.svg";
 import { useCurrency } from "../context/CurrencyContext";
+import { getUI } from "../data/uiDictionary";
 
-const NAV_TEXT = {
-  EN: {
-    home: "Home",
-    listings: "Browse Listings",
-    pricing: "Pricing",
-    partner: "Find a Partner",
-    login: "Log in",
-    signup: "Sign Up",
-    account: "My Account",
-    inbox: "Inbox",
-    myListings: "My Listings",
-    blog: "Blog",
-    contact: "Contact",
-    menu: "Menu",
-    close: "Close",
-    language: "Language",
-    currency: "Currency",
-    manageSubscriptions: "Manage Plan",
-    logout: "Log out",
+const PRIMARY_LINKS = [
+  {
+    to: "/",
+    label: {
+      EN: "Home",
+      AR: "الرئيسية",
+    },
   },
-  AR: {
-    home: "الرئيسية",
-    listings: "تصفح العروض",
-    pricing: "الأسعار",
-    partner: "ابحث عن شريك",
-    login: "تسجيل الدخول",
-    signup: "إنشاء حساب",
-    account: "حسابي",
-    inbox: "صندوق الوارد",
-    myListings: "إعلاناتي",
-    blog: "المدونة",
-    contact: "تواصل معنا",
-    menu: "القائمة",
-    close: "إغلاق",
-    language: "اللغة",
-    currency: "العملة",
-    manageSubscriptions: "إدارة الخطة",
-    logout: "تسجيل الخروج",
+  {
+    to: "/partner",
+    label: {
+      EN: "Find a Partner",
+      AR: "ابحث عن شريك",
+    },
   },
-};
+  {
+    to: "/browse",
+    label: {
+      EN: "Browse Projects",
+      AR: "تصفح المشاريع",
+    },
+  },
+  {
+    to: "/fees",
+    label: {
+      EN: "Platform fee: 2.5% on successful sale",
+      AR: "عمولة المنصة: ٢.٥٪ عند إتمام البيع",
+    },
+    className: "nav-fees-link",
+  },
+];
 
 export default function Navbar({
   language = "EN",
@@ -50,69 +43,289 @@ export default function Navbar({
   profile,
   onLogout,
 }) {
-  const text = NAV_TEXT[language] || NAV_TEXT.EN;
+  const ui = getUI(language);
+  const text = ui.nav;
   const navigate = useNavigate();
+  const location = useLocation();
   const { currency, currencies, setCurrency } = useCurrency();
-  const [open, setOpen] = useState(false);
+
   const [mobileOpen, setMobileOpen] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
-  const dropdownRef = useRef(null);
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [openMenu, setOpenMenu] = useState(null);
 
-  const handleNavigate = (path, scrollTo) => {
-    if (scrollTo) {
-      navigate(path, { state: { scrollTo } });
-      return;
-    }
+  const menuRootRef = useRef(null);
+  const currencyOptions = ["SAR", "USD"].filter((code) => currencies?.[code]);
+
+  useEffect(() => {
+    const refreshUnread = () => {
+      if (typeof window === "undefined") return;
+      const hasAnyUnread =
+        window.localStorage.getItem("sm-messages-unread") === "1" ||
+        window.localStorage.getItem("sm-inbox-unread") === "1";
+      setHasUnread(hasAnyUnread);
+    };
+
+    refreshUnread();
+    window.addEventListener("storage", refreshUnread);
+    window.addEventListener("sm-marketplace-conversations-update", refreshUnread);
+
+    return () => {
+      window.removeEventListener("storage", refreshUnread);
+      window.removeEventListener("sm-marketplace-conversations-update", refreshUnread);
+    };
+  }, []);
+
+  useEffect(() => {
+    const onScroll = () => {
+      setIsScrolled((window.scrollY || 0) > 10);
+    };
+
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    const handleOutside = (event) => {
+      if (!menuRootRef.current?.contains(event.target)) {
+        setOpenMenu(null);
+      }
+    };
+
+    const handleEsc = (event) => {
+      if (event.key === "Escape") {
+        setOpenMenu(null);
+        setMobileOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutside);
+    document.addEventListener("keydown", handleEsc);
+
+    return () => {
+      document.removeEventListener("mousedown", handleOutside);
+      document.removeEventListener("keydown", handleEsc);
+    };
+  }, []);
+
+  useEffect(() => {
+    setMobileOpen(false);
+    setOpenMenu(null);
+  }, [location.pathname]);
+
+  const avatarLabel = profile?.first_name?.[0] || user?.email?.[0] || "S";
+  const avatarUrl = profile?.avatar_url;
+  const navbarScrolled = isScrolled || location.pathname !== "/";
+
+  const closeDrawerAndNavigate = (path) => {
+    setMobileOpen(false);
     navigate(path);
   };
 
-  const handleDrawerNavigate = (path, scrollTo) => {
-    setMobileOpen(false);
-    handleNavigate(path, scrollTo);
+  const cycleLanguage = () => {
+    onLanguageChange?.(language === "AR" ? "EN" : "AR");
   };
 
-  useEffect(() => {
-    const handleClick = (event) => {
-      if (!dropdownRef.current?.contains(event.target)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
+  const cycleCurrency = () => {
+    const next = currency === "SAR" ? "USD" : "SAR";
+    setCurrency(next);
+  };
 
-  useEffect(() => {
-    const updateUnread = () => {
-      if (typeof window === "undefined") return;
-      setHasUnread(window.localStorage.getItem("sm-inbox-unread") === "1");
-    };
-    updateUnread();
-    window.addEventListener("storage", updateUnread);
-    window.addEventListener("sm-inbox-update", updateUnread);
-    return () => {
-      window.removeEventListener("storage", updateUnread);
-      window.removeEventListener("sm-inbox-update", updateUnread);
-    };
-  }, []);
+  const openAuth = (mode = "login") => {
+    navigate("/auth", { state: { mode } });
+  };
 
-  useEffect(() => {
-    if (!user || typeof window === "undefined") return;
-    const stored = window.localStorage.getItem("sm-inbox-unread");
-    if (stored === null) {
-      window.localStorage.setItem("sm-inbox-unread", "1");
-      setHasUnread(true);
-      window.dispatchEvent(new Event("sm-inbox-update"));
+  const profileButtonAction = () => {
+    if (!user) {
+      openAuth("login");
+      return;
     }
-  }, [user]);
+    setOpenMenu((prev) => (prev === "profile" ? null : "profile"));
+  };
 
-  const avatarLabel =
-    profile?.first_name?.[0] || user?.email?.[0] || "A";
-  const avatarUrl = profile?.avatar_url;
+  const notificationsAction = () => {
+    if (!user) {
+      openAuth("login");
+      return;
+    }
+    navigate("/messages");
+  };
 
   return (
-    <nav className="navbar">
-      <div className="logo">
-        <img className="logo-img" src="/sharkmkt-logo.png" alt="Shark Market" />
+    <nav className={`navbar${navbarScrolled ? " scrolled" : ""}`}>
+      <div className="navbar-center">
+        <div className="nav-links nav-links-main">
+          {PRIMARY_LINKS.map((link) => (
+            <NavLink
+              key={link.to}
+              to={link.to}
+              className={({ isActive }) =>
+                [isActive ? "active" : "", link.className || ""].filter(Boolean).join(" ")
+              }
+            >
+              {link.label?.[language] || link.label?.EN}
+            </NavLink>
+          ))}
+        </div>
+      </div>
+
+      <div className="navbar-tools" ref={menuRootRef}>
+        <div className="utility-dropdown">
+          <button
+            type="button"
+            className="utility-pill"
+            aria-expanded={openMenu === "language"}
+            onClick={() => setOpenMenu((prev) => (prev === "language" ? null : "language"))}
+          >
+            <span className="utility-icon" aria-hidden="true">
+              ◎
+            </span>
+            <span>{language}</span>
+            <span className="utility-caret" aria-hidden="true">
+              ▾
+            </span>
+          </button>
+
+          {openMenu === "language" ? (
+            <div className="utility-dropdown-panel" role="menu" aria-label={text.language}>
+              <button
+                type="button"
+                className={language === "EN" ? "active" : ""}
+                onClick={() => {
+                  onLanguageChange?.("EN");
+                  setOpenMenu(null);
+                }}
+              >
+                EN
+              </button>
+              <button
+                type="button"
+                className={language === "AR" ? "active" : ""}
+                onClick={() => {
+                  onLanguageChange?.("AR");
+                  setOpenMenu(null);
+                }}
+              >
+                AR
+              </button>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="utility-dropdown">
+          <button
+            type="button"
+            className="utility-pill"
+            aria-expanded={openMenu === "currency"}
+            onClick={() => setOpenMenu((prev) => (prev === "currency" ? null : "currency"))}
+          >
+            <span className="utility-icon" aria-hidden="true">
+              ¤
+            </span>
+            <span>{currency}</span>
+            <span className="utility-caret" aria-hidden="true">
+              ▾
+            </span>
+          </button>
+
+          {openMenu === "currency" ? (
+            <div className="utility-dropdown-panel" role="menu" aria-label={text.currency}>
+              {currencyOptions.map((code) => (
+                <button
+                  key={code}
+                  type="button"
+                  className={currency === code ? "active" : ""}
+                  onClick={() => {
+                    setCurrency(code);
+                    setOpenMenu(null);
+                  }}
+                >
+                  {currencies?.[code]?.flag} {code}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        <button
+          className="utility-icon-btn"
+          type="button"
+          aria-label={text.messages}
+          onClick={notificationsAction}
+        >
+          <span aria-hidden="true">✉</span>
+          {hasUnread && user ? <span className="inbox-dot" /> : null}
+        </button>
+
+        <div className="utility-dropdown">
+          <button
+            className="avatar-button"
+            type="button"
+            aria-label={text.account}
+            aria-expanded={openMenu === "profile"}
+            onClick={profileButtonAction}
+          >
+            {avatarUrl ? <img src={avatarUrl} alt="avatar" /> : <span>{avatarLabel.toUpperCase()}</span>}
+          </button>
+
+          {openMenu === "profile" ? (
+            <div className="utility-dropdown-panel profile-dropdown" role="menu" aria-label={text.account}>
+              {user ? (
+                <>
+                  <button type="button" onClick={() => navigate("/account")}>
+                    {text.account}
+                  </button>
+                  <button type="button" onClick={() => navigate("/messages")}>
+                    {text.messages}
+                  </button>
+                  <button type="button" onClick={() => navigate("/pricing")}>
+                    {text.pricing}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenMenu(null);
+                      onLogout?.();
+                      navigate("/auth", { state: { mode: "login" }, replace: true });
+                    }}
+                  >
+                    {text.logout}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button type="button" onClick={() => openAuth("login")}>
+                    {text.login}
+                  </button>
+                  <button type="button" onClick={() => openAuth("signup")}>
+                    {text.signup}
+                  </button>
+                </>
+              )}
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="navbar-brand">
+        <button
+          type="button"
+          className="logo logo-button"
+          aria-label={ui.brand}
+          onClick={() => navigate("/")}
+        >
+          <img className="logo-img" src={brandLogo} alt={ui.brand} />
+        </button>
+      </div>
+
+      <div className="nav-mobile-controls">
+        <button className="mobile-utility" type="button" onClick={cycleLanguage}>
+          {language}
+        </button>
+        <button className="mobile-utility" type="button" onClick={cycleCurrency}>
+          {currency}
+        </button>
       </div>
 
       <button
@@ -127,132 +340,6 @@ export default function Navbar({
         <span className="nav-toggle-bar" />
       </button>
 
-      <div className="nav-links">
-        <button type="button" onClick={() => handleNavigate("/", "#home")}>
-          {text.home}
-        </button>
-        <button
-          type="button"
-          onClick={() => handleNavigate("/", "#listings")}
-        >
-          {text.listings}
-        </button>
-        <button type="button" onClick={() => handleNavigate("/partner")}>
-          {text.partner}
-        </button>
-        <button type="button" onClick={() => handleNavigate("/pricing")}>
-          {text.pricing}
-        </button>
-        <button type="button" onClick={() => handleNavigate("/blog")}>
-          {text.blog}
-        </button>
-      </div>
-
-      <div className="nav-actions">
-        <div className="language-toggle">
-          <button
-            className={`pill-button ${language === "EN" ? "active" : ""}`}
-            type="button"
-            onClick={() => onLanguageChange?.("EN")}
-          >
-            EN
-          </button>
-          <button
-            className={`pill-button ${language === "AR" ? "active" : ""}`}
-            type="button"
-            onClick={() => onLanguageChange?.("AR")}
-          >
-            AR
-          </button>
-        </div>
-        <div className="currency-switcher">
-          <select
-            value={currency}
-            onChange={(event) => setCurrency(event.target.value)}
-            aria-label={language === "AR" ? "تغيير العملة" : "Change currency"}
-          >
-            {Object.entries(currencies).map(([code, meta]) => (
-              <option key={code} value={code}>
-                {meta.flag} {code}
-              </option>
-            ))}
-          </select>
-        </div>
-        {user ? (
-          <div className="nav-user" ref={dropdownRef}>
-            <button
-              className="inbox-button"
-              type="button"
-              onClick={() => navigate("/inbox")}
-              aria-label={language === "AR" ? "صندوق الوارد" : "Inbox"}
-            >
-              <span className="inbox-icon" aria-hidden="true">
-                ✉️
-              </span>
-              {hasUnread ? <span className="inbox-dot" /> : null}
-            </button>
-            <button
-              className="avatar-button"
-              type="button"
-              onClick={() => setOpen((prev) => !prev)}
-              aria-label={language === "AR" ? "الحساب" : "Account"}
-            >
-              {avatarUrl ? (
-                <img src={avatarUrl} alt="avatar" />
-              ) : (
-                <span>{avatarLabel.toUpperCase()}</span>
-              )}
-            </button>
-            {open ? (
-              <div className="avatar-dropdown">
-                <button type="button" onClick={() => handleNavigate("/account")}>
-                  {text.account}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleNavigate("/pricing")}
-                >
-                  {text.manageSubscriptions}
-                </button>
-                <button type="button" onClick={() => handleNavigate("/my-listings")}>
-                  {text.myListings}
-                </button>
-                <button type="button" onClick={() => handleNavigate("/inbox")}>
-                  {text.inbox}
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    setOpen(false);
-                    onLogout?.();
-                    navigate("/auth", { state: { mode: "login" }, replace: true });
-                  }}
-                >
-                  {language === "AR" ? "تسجيل الخروج" : "Log out"}
-                </button>
-              </div>
-            ) : null}
-          </div>
-        ) : (
-          <>
-            <button
-              className="btn btn-ghost"
-              type="button"
-              onClick={() => navigate("/auth", { state: { mode: "login" } })}
-            >
-              {text.login}
-            </button>
-            <button
-              className="btn btn-dark"
-              type="button"
-              onClick={() => navigate("/auth", { state: { mode: "signup" } })}
-            >
-              {text.signup}
-            </button>
-          </>
-        )}
-      </div>
-
       {mobileOpen ? (
         <button
           className="nav-drawer-backdrop"
@@ -261,9 +348,10 @@ export default function Navbar({
           onClick={() => setMobileOpen(false)}
         />
       ) : null}
+
       <aside className={`nav-drawer ${mobileOpen ? "open" : ""}`}>
         <div className="nav-drawer-header">
-          <span className="nav-drawer-title">{text.menu}</span>
+          <strong>{text.menu}</strong>
           <button
             className="nav-drawer-close"
             type="button"
@@ -273,88 +361,28 @@ export default function Navbar({
             X
           </button>
         </div>
+
         <div className="nav-drawer-links">
-          <button type="button" onClick={() => handleDrawerNavigate("/", "#home")}>
-            {text.home}
-          </button>
-          <button
-            type="button"
-            onClick={() => handleDrawerNavigate("/", "#listings")}
-          >
-            {text.listings}
-          </button>
-          <button type="button" onClick={() => handleDrawerNavigate("/partner")}>
-            {text.partner}
-          </button>
-          <button type="button" onClick={() => handleDrawerNavigate("/pricing")}>
-            {text.pricing}
-          </button>
-          <button type="button" onClick={() => handleDrawerNavigate("/blog")}>
-            {text.blog}
-          </button>
-        </div>
-        <div className="nav-drawer-section">
-          <span className="nav-drawer-label">{text.language}</span>
-          <div className="language-toggle">
-            <button
-              className={`pill-button ${language === "EN" ? "active" : ""}`}
-              type="button"
-              onClick={() => onLanguageChange?.("EN")}
-            >
-              EN
+          {PRIMARY_LINKS.map((link) => (
+            <button key={link.to} type="button" onClick={() => closeDrawerAndNavigate(link.to)}>
+              {link.label?.[language] || link.label?.EN}
             </button>
-            <button
-              className={`pill-button ${language === "AR" ? "active" : ""}`}
-              type="button"
-              onClick={() => onLanguageChange?.("AR")}
-            >
-              AR
-            </button>
-          </div>
+          ))}
         </div>
-        <div className="nav-drawer-section">
-          <span className="nav-drawer-label">{text.currency}</span>
-          <div className="currency-switcher">
-            <select
-              value={currency}
-              onChange={(event) => setCurrency(event.target.value)}
-              aria-label={
-                language === "AR" ? "تغيير العملة" : "Change currency"
-              }
-            >
-              {Object.entries(currencies).map(([code, meta]) => (
-                <option key={code} value={code}>
-                  {meta.flag} {code}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        {user ? (
-          <div className="nav-drawer-section">
-            <span className="nav-drawer-label">{text.account}</span>
-            <div className="nav-drawer-links">
-              <button type="button" onClick={() => handleDrawerNavigate("/account")}>
+
+        <div className="nav-drawer-section nav-drawer-auth">
+          {user ? (
+            <>
+              <button className="btn btn-ghost" type="button" onClick={() => closeDrawerAndNavigate("/account")}>
                 {text.account}
               </button>
-              <button
-                type="button"
-                onClick={() => handleDrawerNavigate("/pricing")}
-              >
-                {text.manageSubscriptions}
+              <button className="btn btn-ghost" type="button" onClick={() => closeDrawerAndNavigate("/messages")}>
+                {text.messages}
               </button>
               <button
+                className="btn btn-dark"
                 type="button"
-                onClick={() => handleDrawerNavigate("/my-listings")}
-              >
-                {text.myListings}
-              </button>
-              <button type="button" onClick={() => handleDrawerNavigate("/inbox")}>
-                {text.inbox}
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
+                onClick={() => {
                   setMobileOpen(false);
                   onLogout?.();
                   navigate("/auth", { state: { mode: "login" }, replace: true });
@@ -362,32 +390,32 @@ export default function Navbar({
               >
                 {text.logout}
               </button>
-            </div>
-          </div>
-        ) : (
-          <div className="nav-drawer-section nav-drawer-auth">
-            <button
-              className="btn btn-ghost"
-              type="button"
-              onClick={() => {
-                setMobileOpen(false);
-                navigate("/auth", { state: { mode: "login" } });
-              }}
-            >
-              {text.login}
-            </button>
-            <button
-              className="btn btn-dark"
-              type="button"
-              onClick={() => {
-                setMobileOpen(false);
-                navigate("/auth", { state: { mode: "signup" } });
-              }}
-            >
-              {text.signup}
-            </button>
-          </div>
-        )}
+            </>
+          ) : (
+            <>
+              <button
+                className="btn btn-ghost"
+                type="button"
+                onClick={() => {
+                  setMobileOpen(false);
+                  openAuth("login");
+                }}
+              >
+                {text.login}
+              </button>
+              <button
+                className="btn btn-dark"
+                type="button"
+                onClick={() => {
+                  setMobileOpen(false);
+                  openAuth("signup");
+                }}
+              >
+                {text.signup}
+              </button>
+            </>
+          )}
+        </div>
       </aside>
     </nav>
   );

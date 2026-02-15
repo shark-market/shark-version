@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useCurrency } from "../context/CurrencyContext";
 import { useAuth } from "../context/AuthContext";
 import { getCustomListings, saveCustomListings } from "../data/listingsStore";
+import { upsertListing } from "../services/listingsService";
+import { mapCustomListingToAdminListing } from "../services/listingSync";
 import {
   CATEGORY_OPTIONS,
   COMMITMENT_OPTIONS,
@@ -77,10 +79,12 @@ export default function CreateListing({ language = "EN" }) {
       partnerCommitment:
         form.dealType === "partner" ? form.partnerCommitment : undefined,
       status: "published",
+      approvalStatus: "pending",
     };
 
     const current = getCustomListings();
     saveCustomListings([newListing, ...current]);
+    upsertListing(mapCustomListingToAdminListing(newListing));
     setForm(DEFAULT_LISTING_FORM);
     setStatus({
       type: "success",
@@ -97,7 +101,7 @@ export default function CreateListing({ language = "EN" }) {
         <h2>{isArabic ? "إنشاء إعلان جديد" : "Create a listing"}</h2>
         <p className="muted">
           {isArabic
-            ? "أدخل بيانات إعلانك ليظهر في صفحة العروض."
+            ? "أدخل بيانات إعلانك ليظهر في صفحة المشاريع."
             : "Add the listing details to publish on the marketplace."}
         </p>
       </div>

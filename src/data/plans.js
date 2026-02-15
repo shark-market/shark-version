@@ -8,7 +8,7 @@ export const PLANS = [
     popular: false,
     description: {
       EN: "Browse listings with basic details only.",
-      AR: "تصفّح العروض بمعلومات أساسية فقط.",
+      AR: "تصفّح المشاريع بمعلومات أساسية فقط.",
     },
     features: {
       EN: [

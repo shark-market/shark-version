@@ -1,10 +1,7 @@
-import Footer from "../components/Footer";
-import { TEXT } from "../data/translations";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabase";
 
 export default function Account({ language = "EN" }) {
-  const text = TEXT[language] || TEXT.EN;
   const { user, profile } = useAuth();
 
   if (!user) return null;
@@ -84,7 +81,6 @@ export default function Account({ language = "EN" }) {
           </button>
         </div>
       </section>
-      <Footer text={text} language={language} />
     </div>
   );
 }

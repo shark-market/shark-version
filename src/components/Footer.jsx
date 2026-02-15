@@ -1,90 +1,180 @@
 import { useNavigate } from "react-router-dom";
+import brandLogo from "../assets/brand/sharkmkt-logo.svg";
+import { getUI } from "../data/uiDictionary";
 
-export default function Footer({ text, language = "EN" }) {
-  const isArabic = language === "AR";
+const PRODUCT_LINKS = [
+  { key: "home", path: "/" },
+  { key: "browse", path: "/browse" },
+  { key: "sell", path: "/sell" },
+  { key: "partner", path: "/partner" },
+  { key: "messages", path: "/messages" },
+  { key: "pricing", path: "/pricing" },
+  { key: "blog", path: "/blog" },
+];
+
+const COMPANY_LINKS = [
+  { key: "about", path: "/about" },
+  { key: "contact", path: "/contact" },
+  { key: "help", path: "/help" },
+];
+
+const LEGAL_LINKS = [
+  { key: "privacy", path: "/privacy" },
+  { key: "terms", path: "/terms" },
+  { key: "escrow", path: "/escrow" },
+  { key: "disclaimer", path: "/terms" },
+];
+
+const SOCIAL_LINKS = [
+  { id: "x", label: "X" },
+  { id: "linkedin", label: "in" },
+  { id: "instagram", label: "IG" },
+];
+
+const TRUST_ICONS = ["✓", "◆", "▣", "●"];
+
+const FOOTER_META = {
+  EN: {
+    contact: "Contact",
+    legal: {
+      disclaimer: "Disclaimer",
+    },
+    contactLabels: {
+      emails: "Emails",
+      phone: "Phone",
+    },
+    tagline: "Global standards for buying, selling, and partnering in digital businesses.",
+    statement:
+      "SHARKMKT is a trusted global destination for buying, selling, and investing in premium digital businesses.",
+  },
+  AR: {
+    contact: "التواصل",
+    legal: {
+      disclaimer: "إخلاء مسؤولية",
+    },
+    contactLabels: {
+      emails: "البريد",
+      phone: "الهاتف",
+    },
+    tagline: "معايير عالمية لشراء وبيع ومطابقة الشركاء في المشاريع الرقمية.",
+    statement:
+      "SHARKMKT وجهة عالمية موثوقة لشراء وبيع والاستثمار في المشاريع الرقمية المتميزة.",
+  },
+};
+
+export default function Footer({ language = "EN" }) {
   const navigate = useNavigate();
-  const goTo = (path, scrollTo) => {
-    navigate(path, scrollTo ? { state: { scrollTo } } : undefined);
-  };
+  const ui = getUI(language);
+  const text = ui.footer;
+  const meta = FOOTER_META[language] || FOOTER_META.EN;
+  const year = new Date().getFullYear();
+
   return (
-    <footer className="footer" id="contact">
-      <div className="footer-trust">
-        <div className="container trust-grid">
-          <div className="trust-item">
-            <span className="trust-icon">🔒</span>
-            <span>{isArabic ? "مدفوعات آمنة" : "Secure Payments"}</span>
+    <footer className="footer" id="footer">
+      <div className="container footer-brand-strip">
+        <div className="footer-brand-column">
+          <div className="footer-logo">
+            <img src={brandLogo} alt={ui.brand} />
           </div>
-          <div className="trust-item">
-            <span className="trust-icon">🛡️</span>
-            <span>{isArabic ? "حماية وسيط الضمان" : "Escrow Protection"}</span>
+          <p className="muted">{text.intro}</p>
+          <p className="footer-statement">{meta.statement}</p>
+
+          <div className="footer-trust-row" aria-label="Trust signals">
+            {(text.trust || []).map((item, index) => (
+              <span className="footer-trust-item" key={item}>
+                <span className="footer-trust-icon" aria-hidden="true">
+                  {TRUST_ICONS[index] || "✓"}
+                </span>
+                {item}
+              </span>
+            ))}
           </div>
-          <div className="trust-item">
-            <span className="trust-icon">✅</span>
-            <span>{isArabic ? "عروض موثّقة" : "Verified Listings"}</span>
-          </div>
-          <div className="trust-item">
-            <span className="trust-icon">✔️</span>
-            <span>{isArabic ? "توثيق KYC" : "KYC Verification"}</span>
+
+          <div className="footer-social" aria-label={text.social}>
+            {SOCIAL_LINKS.map((item) => (
+              <button
+                key={item.id}
+                className="footer-social-link"
+                type="button"
+                aria-label={item.id}
+              >
+                {item.label}
+              </button>
+            ))}
           </div>
         </div>
       </div>
 
-      <div className="container footer-inner">
+      <div className="container footer-grid-v2">
+
         <div className="footer-column">
-          <div className="footer-logo">
-            <img src="/sharkmkt-logo.png" alt="Shark Market" />
+          <h4>{text.product}</h4>
+          {PRODUCT_LINKS.map((item) => (
+            <button
+              key={item.path}
+              className="footer-link"
+              type="button"
+              onClick={() => navigate(item.path)}
+            >
+              {text.links[item.key]}
+            </button>
+          ))}
+        </div>
+
+        <div className="footer-column">
+          <h4>{text.company}</h4>
+          {COMPANY_LINKS.map((item) => (
+            <button
+              key={item.path}
+              className="footer-link"
+              type="button"
+              onClick={() => navigate(item.path)}
+            >
+              {text.links[item.key]}
+            </button>
+          ))}
+        </div>
+
+        <div className="footer-column">
+          <h4>{text.legal}</h4>
+          {LEGAL_LINKS.map((item) => (
+            <button
+              key={`${item.key}-${item.path}`}
+              className="footer-link"
+              type="button"
+              onClick={() => navigate(item.path)}
+            >
+              {item.key === "disclaimer"
+                ? meta.legal.disclaimer
+                : text.links[item.key]}
+            </button>
+          ))}
+        </div>
+
+        <div className="footer-column footer-contact-column">
+          <h4>{meta.contact}</h4>
+
+          <div className="footer-contact-group">
+            <span className="muted">{meta.contactLabels.emails}</span>
+            <a className="footer-contact-link" href="mailto:sharkmkt@sharkmkt.io">
+              sharkmkt@sharkmkt.io
+            </a>
           </div>
-          <p className="muted">{text.footerIntro}</p>
-        </div>
-        <div className="footer-column">
-          <h4>{text.quickLinks}</h4>
-          <button className="footer-link" type="button" onClick={() => goTo("/", "#listings")}>
-            {text.browseListings}
-          </button>
-          <button className="footer-link" type="button" onClick={() => goTo("/onboarding")}>
-            {isArabic ? "بيع مشروعك" : "Sell Your Business"}
-          </button>
-          <button className="footer-link" type="button" onClick={() => goTo("/", "#home")}>
-            {text.howItWorks}
-          </button>
-          <button className="footer-link" type="button" onClick={() => goTo("/pricing")}>
-            {text.pricingLink}
-          </button>
-        </div>
-        <div className="footer-column">
-          <h4>{isArabic ? "الموارد" : "Resources"}</h4>
-          <button className="footer-link" type="button" onClick={() => goTo("/blog")}>
-            {isArabic ? "المدونة" : "Blog"}
-          </button>
-          <button className="footer-link" type="button">
-            {isArabic ? "مركز المساعدة" : "Help Center"}
-          </button>
-          <button className="footer-link" type="button">
-            {isArabic ? "دليل المشتري" : "Buyer Guide"}
-          </button>
-          <button className="footer-link" type="button">
-            {isArabic ? "دليل البائع" : "Seller Guide"}
-          </button>
-        </div>
-        <div className="footer-column">
-          <h4>{isArabic ? "قانوني" : "Legal"}</h4>
-          <button className="footer-link" type="button" onClick={() => goTo("/privacy")}>
-            {isArabic ? "سياسة الخصوصية" : "Privacy Policy"}
-          </button>
-          <button className="footer-link" type="button" onClick={() => goTo("/terms")}>
-            {isArabic ? "شروط الخدمة" : "Terms of Service"}
-          </button>
-          <button className="footer-link" type="button" onClick={() => goTo("/escrow")}>
-            {isArabic ? "خدمات الضمان" : "Escrow Services"}
-          </button>
-          <button className="footer-link" type="button" onClick={() => goTo("/contact")}>
-            {isArabic ? "تواصل معنا" : "Contact Us"}
-          </button>
+
+          <div className="footer-contact-group">
+            <span className="muted">{meta.contactLabels.phone}</span>
+            <a className="footer-contact-link" href="tel:+966591658849">
+              +966 59 165 8849 (0591658849)
+            </a>
+          </div>
         </div>
       </div>
 
       <div className="footer-bottom">
-        © 2024 Shark Market. {isArabic ? "جميع الحقوق محفوظة." : "All rights reserved."}
+        <div className="container footer-bottom-inner">
+          <span>© SHARKMKT {year}</span>
+          <span className="muted">{meta.tagline}</span>
+        </div>
       </div>
     </footer>
   );

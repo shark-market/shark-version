@@ -10,6 +10,15 @@ import {
   upsertCustomListing,
 } from "../data/listingsStore";
 import { getListingViews } from "../data/viewsStore";
+import {
+  deleteListing,
+  updateListingStatus,
+  upsertListing,
+} from "../services/listingsService";
+import {
+  mapCustomListingToAdminListing,
+  toAdminListingStatus,
+} from "../services/listingSync";
 
 const LABELS = {
   EN: {
@@ -81,6 +90,12 @@ export default function MyListings({ language = "EN" }) {
     return () => window.removeEventListener("sm-custom-listings", handleUpdate);
   }, []);
 
+  useEffect(() => {
+    customListings.forEach((listing) => {
+      upsertListing(mapCustomListingToAdminListing(listing));
+    });
+  }, [customListings]);
+
   const rows = useMemo(() => {
     const ownedListings =
       role === "admin"
@@ -100,6 +115,7 @@ export default function MyListings({ language = "EN" }) {
     const nextStatus = listing.status === "published" ? "paused" : "published";
     const nextListing = { ...listing, status: nextStatus, updatedAt: new Date().toISOString() };
     upsertCustomListing(nextListing);
+    updateListingStatus(listing.id, toAdminListingStatus(nextStatus));
     setCustomListings(getCustomListings());
   };
 
@@ -109,18 +125,21 @@ export default function MyListings({ language = "EN" }) {
       ...listing,
       id: `c-${Date.now()}`,
       status: "draft",
+      approvalStatus: "pending",
       ownerId: user?.id || listing.ownerId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
     const current = getCustomListings();
     saveCustomListings([copy, ...current]);
+    upsertListing(mapCustomListingToAdminListing(copy));
     setCustomListings(getCustomListings());
   };
 
   const handleDelete = () => {
     if (!deleteTarget) return;
     removeCustomListing(deleteTarget.id);
+    deleteListing(deleteTarget.id);
     setCustomListings(getCustomListings());
     setDeleteTarget(null);
   };
@@ -240,7 +259,7 @@ export default function MyListings({ language = "EN" }) {
                   navigate("/create-listing");
                 }}
               >
-                {language === "AR" ? "العروض" : "Listings"}
+                {language === "AR" ? "المشاريع" : "Projects"}
               </button>
             </div>
           </div>

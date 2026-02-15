@@ -3,6 +3,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useCurrency } from "../context/CurrencyContext";
 import { useAuth } from "../context/AuthContext";
 import { getCustomListings, upsertCustomListing } from "../data/listingsStore";
+import { upsertListing } from "../services/listingsService";
+import { mapCustomListingToAdminListing } from "../services/listingSync";
 import {
   CATEGORY_OPTIONS,
   COMMITMENT_OPTIONS,
@@ -110,10 +112,12 @@ export default function EditListing({ language = "EN" }) {
       partnerRole: form.dealType === "partner" ? form.partnerRole : undefined,
       partnerCommitment:
         form.dealType === "partner" ? form.partnerCommitment : undefined,
+      approvalStatus: "pending",
       updatedAt: new Date().toISOString(),
     };
 
     upsertCustomListing(nextListing);
+    upsertListing(mapCustomListingToAdminListing(nextListing));
     setStatus({
       type: "success",
       message: isArabic ? "تم حفظ التغييرات." : "Changes saved.",
@@ -326,4 +330,3 @@ export default function EditListing({ language = "EN" }) {
     </section>
   );
 }
-

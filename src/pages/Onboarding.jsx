@@ -2,9 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
-import { useCurrency } from "../context/CurrencyContext";
+import { getUserById, setOnboardingCompleted, upsertUser } from "../services/usersService";
 
-const COUNTRIES = [
+const ROLE_OPTIONS = [
+  { value: "partner", label: { AR: "أبحث عن شريك", EN: "Find a Partner" } },
+  { value: "seller", label: { AR: "بائع", EN: "Seller" } },
+  { value: "buyer", label: { AR: "مشتري", EN: "Buyer" } },
+  { value: "investor", label: { AR: "مستثمر", EN: "Investor" } },
+];
+
+const COUNTRY_OPTIONS = [
   "Saudi Arabia",
   "United Arab Emirates",
   "Kuwait",
@@ -16,24 +23,19 @@ const COUNTRIES = [
   "Morocco",
 ];
 
-const HEAR_OPTIONS = [
-  { value: "twitter", label: { EN: "Twitter", AR: "تويتر" } },
-  { value: "google", label: { EN: "Google", AR: "Google" } },
-  { value: "friend", label: { EN: "Friend", AR: "صديق" } },
-  { value: "ad", label: { EN: "Ad", AR: "إعلان" } },
-  { value: "other", label: { EN: "Other", AR: "أخرى" } },
-];
+const CITY_OPTIONS = {
+  "Saudi Arabia": ["Riyadh", "Jeddah", "Dammam", "Makkah", "Madinah"],
+  "United Arab Emirates": ["Dubai", "Abu Dhabi", "Sharjah"],
+  Kuwait: ["Kuwait City"],
+  Qatar: ["Doha"],
+  Bahrain: ["Manama"],
+  Oman: ["Muscat"],
+  Jordan: ["Amman"],
+  Egypt: ["Cairo", "Alexandria"],
+  Morocco: ["Casablanca", "Rabat"],
+};
 
-const BUSINESS_CATEGORIES = [
-  { value: "SaaS", label: { EN: "SaaS", AR: "SaaS" } },
-  { value: "Ecom", label: { EN: "E-commerce", AR: "تجارة إلكترونية" } },
-  { value: "Content", label: { EN: "Content", AR: "محتوى" } },
-  { value: "App", label: { EN: "App", AR: "تطبيق" } },
-  { value: "Channel", label: { EN: "Channel", AR: "قناة" } },
-  { value: "Domain", label: { EN: "Domain", AR: "نطاق" } },
-  { value: "Service", label: { EN: "Service", AR: "خدمة" } },
-];
-
+const INTEREST_OPTIONS = ["SaaS", "E-commerce", "Marketplace", "Content", "AI", "Mobile App"];
 const PHONE_CODES = ["+966", "+971", "+965", "+974", "+973", "+968"];
 
 const parsePhone = (phone, fallbackCode) => {
@@ -54,13 +56,30 @@ const parsePhone = (phone, fallbackCode) => {
   };
 };
 
+const ACCOUNT_DESTINATIONS = {
+  partner: "/partner",
+  seller: "/sell",
+  buyer: "/browse",
+  investor: "/browse?filter=investor",
+};
+
+const BUDGET_TYPES = new Set(["buyer", "investor"]);
+
+const shouldShowBudget = (role) => BUDGET_TYPES.has(String(role || "").trim());
+
+const getOnboardingDestination = (role) =>
+  ACCOUNT_DESTINATIONS[String(role || "").trim()] || "/partner";
+
+const asText = (value) => String(value ?? "").trim();
+
 const validateOnboarding = (formState, language) => {
   const isArabic = language === "AR";
   const errors = {};
 
   if (!formState.role) {
-    errors.role = isArabic ? "اختر نوع الحساب" : "Select an account type";
+    errors.role = isArabic ? "حدد نوع الحساب" : "Account type is required";
   }
+
   if (!formState.firstName.trim()) {
     errors.firstName = isArabic ? "الاسم الأول مطلوب" : "First name is required";
   }
@@ -70,23 +89,25 @@ const validateOnboarding = (formState, language) => {
   if (!formState.country) {
     errors.country = isArabic ? "الدولة مطلوبة" : "Country is required";
   }
-  if (!formState.phoneNumber.trim()) {
-    errors.phoneNumber = isArabic
-      ? "رقم الهاتف مطلوب"
-      : "Phone number is required";
-  }
-  if (!formState.termsAccepted) {
-    errors.termsAccepted = isArabic
-      ? "يجب الموافقة على الشروط"
-      : "You must accept the terms";
+  if (!formState.city) {
+    errors.city = isArabic ? "المدينة مطلوبة" : "City is required";
   }
   if (
     formState.phoneNumber &&
     (formState.phoneNumber.length < 7 || formState.phoneNumber.length > 12)
   ) {
-    errors.phoneNumber = isArabic
-      ? "رقم الهاتف غير صحيح"
-      : "Invalid phone number";
+    errors.phoneNumber = isArabic ? "رقم الجوال غير صحيح" : "Invalid mobile number";
+  }
+
+  if (
+    shouldShowBudget(formState.role) &&
+    formState.budgetMin &&
+    formState.budgetMax &&
+    Number(formState.budgetMin) > Number(formState.budgetMax)
+  ) {
+    errors.budgetMax = isArabic
+      ? "الحد الأعلى يجب أن يكون أكبر من الحد الأدنى"
+      : "Max budget must be greater than min budget";
   }
 
   const firstErrorField = Object.keys(errors)[0] || "";
@@ -97,150 +118,94 @@ const validateOnboarding = (formState, language) => {
   };
 };
 
-export default function Onboarding({ language = "EN" }) {
+export default function Onboarding({ language = "AR" }) {
   const navigate = useNavigate();
-  const { user, profile, refreshProfile } = useAuth();
-  const { currency, currencies } = useCurrency();
+  const { user, profile, appUser, refreshProfile } = useAuth();
   const isArabic = language === "AR";
-  const currencyLabel = isArabic
-    ? currencies?.[currency]?.symbol || currency
-    : currencies?.[currency]?.label || currency;
+
   const [formState, setFormState] = useState({
     role: "",
     firstName: "",
     lastName: "",
-    companyName: "",
-    country: "",
     phoneCountry: "+966",
     phoneNumber: "",
-    howHeard: "",
-    businessUrl: "",
-    businessCategory: "",
-    annualRevenue: "",
-    annualProfit: "",
-    businessesOwned: "",
-    termsAccepted: false,
+    country: "",
+    city: "",
+    interests: [],
+    budgetMin: "",
+    budgetMax: "",
   });
-  const [avatarFile, setAvatarFile] = useState(null);
-  const [avatarPreview, setAvatarPreview] = useState("");
   const [status, setStatus] = useState({ type: "", message: "" });
   const [formMessage, setFormMessage] = useState("");
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showSkipModal, setShowSkipModal] = useState(false);
+  const [showCustomInterest, setShowCustomInterest] = useState(false);
+  const [customInterest, setCustomInterest] = useState("");
+  const showBudgetFields = shouldShowBudget(formState.role);
 
   const text = useMemo(
     () => ({
-      title: language === "AR" ? "لنبدأ" : "Let’s get you set up",
-      subtitle:
-        language === "AR"
-          ? "أخبرنا عن نفسك لنخصص تجربتك."
-          : "Tell us about yourself to personalize your experience.",
-      progressStep: language === "AR" ? "الخطوة 1 من 3" : "Step 1 of 3",
-      progressHelper:
-        language === "AR"
-          ? "أكمل المعلومات الأساسية لتبدأ بسرعة."
-          : "Complete your basics to get started quickly.",
-      role: language === "AR" ? "نوع الحساب" : "Account type",
-      buyer: language === "AR" ? "مشتري" : "Buyer",
-      seller: language === "AR" ? "بائع" : "Seller",
-      firstName: language === "AR" ? "الاسم الأول" : "First name",
-      lastName: language === "AR" ? "اسم العائلة" : "Last name",
-      company: language === "AR" ? "اسم الشركة" : "Company name",
-      country: language === "AR" ? "الدولة" : "Country",
-      phone: language === "AR" ? "رقم الهاتف" : "Phone number",
-      howHeard:
-        language === "AR"
-          ? "كيف سمعت عنا؟"
-          : "How did you hear about us?",
-      businessUrl: language === "AR" ? "رابط مشروعك" : "Business URL",
-      businessCategory:
-        language === "AR" ? "تصنيف المشروع" : "Business Category",
-      annualRevenue:
-        language === "AR"
-          ? `الإيراد السنوي (${currencyLabel})`
-          : `Annual revenue (${currencyLabel})`,
-      annualProfit:
-        language === "AR"
-          ? `الربح السنوي (${currencyLabel})`
-          : `Annual profit (${currencyLabel})`,
-      businessesOwned:
-        language === "AR"
-          ? "كم عدد المشاريع التي تملكها؟"
-          : "How many businesses do you own?",
-      termsLabel: language === "AR" ? "أوافق على" : "I agree to the",
-      termsAnd: language === "AR" ? "و" : "and",
-      termsTerms: language === "AR" ? "الشروط والأحكام" : "Terms & Conditions",
-      termsPrivacy: language === "AR" ? "سياسة الخصوصية" : "Privacy Policy",
-      avatar: language === "AR" ? "الصورة الشخصية" : "Avatar",
-      chooseImage: language === "AR" ? "اختر صورة" : "Choose image",
-      submit: language === "AR" ? "إكمال" : "Complete",
-      optionalTitle: "اختياري / Optional",
-      optionalHelper:
-        language === "AR"
-          ? "أضف تفاصيل إضافية لتحسين تجربتك."
-          : "Add extra details to improve your experience.",
-      skip: language === "AR" ? "تخطي الآن" : "Skip for now",
-      skipTitle: "تخطي الإعداد الآن؟",
-      skipBody:
-        "يمكنك إكمال البيانات لاحقًا، لكن بعض الميزات مثل التحقق وإضافة المشاريع قد تكون محدودة.",
-      skipCancel: "إلغاء",
-      skipConfirm: "تخطي",
-      toastBuyer: "جاهزين! ابدأ تصفح المشاريع",
-      toastSeller: "ممتاز! ابدأ بإضافة مشروعك الأول",
-      saving: language === "AR" ? "جاري الحفظ…" : "Saving...",
-      successMessage:
-        language === "AR"
-          ? "✅ تم حفظ بياناتك بنجاح"
-          : "✅ Your details were saved successfully",
-      validationMessage:
-        language === "AR"
-          ? "يرجى تعبئة الحقول المطلوبة"
-          : "Please fill the required fields.",
-      saveError:
-        language === "AR"
-          ? "تعذر حفظ البيانات الآن. حاول مرة أخرى."
-          : "We couldn't save your details. Please try again.",
-      error:
-        language === "AR"
-          ? "حدث خطأ، حاول مرة أخرى."
-          : "Something went wrong. Please try again.",
+      title: isArabic ? "خلّنا نجهز حسابك" : "Let us set up your account",
+      subtitle: isArabic
+        ? "أجب على أسئلة بسيطة لتخصيص تجربتك"
+        : "Answer a few simple questions to personalize your experience.",
+      role: isArabic ? "نوع الحساب" : "Account type",
+      firstName: isArabic ? "الاسم الأول" : "First name",
+      lastName: isArabic ? "اسم العائلة" : "Last name",
+      phone: isArabic ? "رقم الجوال" : "Mobile number",
+      country: isArabic ? "الدولة" : "Country",
+      city: isArabic ? "المدينة" : "City",
+      interests: isArabic ? "اهتماماتك" : "Your interests",
+      budget: isArabic ? "نطاق الميزانية (ريال)" : "Budget range (SAR)",
+      budgetMin: isArabic ? "من" : "From",
+      budgetMax: isArabic ? "إلى" : "To",
+      submit: isArabic ? "حفظ والمتابعة" : "Save and Continue",
+      skip: isArabic ? "تخطي الآن" : "Skip now",
+      validationMessage: isArabic
+        ? "يرجى تعبئة الحقول المطلوبة"
+        : "Please complete the required fields.",
+      saving: isArabic ? "جاري الحفظ…" : "Saving...",
+      successMessage: isArabic
+        ? "✅ تم حفظ بياناتك بنجاح"
+        : "✅ Your details were saved successfully",
+      saveError: isArabic
+        ? "تعذر حفظ البيانات الآن. حاول مرة أخرى."
+        : "We couldn't save your details. Please try again.",
+      choose: isArabic ? "اختر" : "Select",
+      addOther: isArabic ? "+ أخرى" : "+ Other",
+      customInterestPlaceholder: isArabic ? "اكتب اهتمامك هنا" : "Type your interest here",
+      add: isArabic ? "إضافة" : "Add",
     }),
-    [currencyLabel, language]
+    [isArabic]
   );
 
   useEffect(() => {
     if (!profile) return;
-    setFormState((prev) => {
-      const phoneData = parsePhone(profile.phone, PHONE_CODES[0]);
-      return {
-        ...prev,
-        role: profile.role || prev.role,
-        firstName: profile.first_name || prev.firstName,
-        lastName: profile.last_name || prev.lastName,
-        companyName: profile.company_name || prev.companyName,
-        country: profile.country || prev.country,
-        phoneCountry: phoneData.phoneCountry || prev.phoneCountry,
-        phoneNumber: phoneData.phoneNumber || prev.phoneNumber,
-        howHeard: profile.how_heard || prev.howHeard,
-        businessUrl: profile.business_url || prev.businessUrl,
-        businessCategory: profile.business_category || prev.businessCategory,
-        annualRevenue: profile.annual_revenue || prev.annualRevenue,
-        annualProfit: profile.annual_profit || prev.annualProfit,
-        businessesOwned: profile.businesses_owned || prev.businessesOwned,
-        termsAccepted: profile.terms_accepted || prev.termsAccepted,
-      };
-    });
-    if (profile.avatar_url) {
-      setAvatarPreview(profile.avatar_url);
-    }
-  }, [profile]);
 
-  const handleChange = (field) => (event) => {
-    const value =
-      event.target.type === "checkbox"
-        ? event.target.checked
-        : event.target.value;
+    const phoneData = parsePhone(profile.phone, PHONE_CODES[0]);
+    const profileInterests = String(profile.business_category || "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    setFormState((prev) => ({
+      ...prev,
+      role: appUser?.accountType || profile.role || prev.role,
+      firstName: profile.first_name || prev.firstName,
+      lastName: profile.last_name || prev.lastName,
+      phoneCountry: phoneData.phoneCountry || prev.phoneCountry,
+      phoneNumber: phoneData.phoneNumber || prev.phoneNumber,
+      country: appUser?.country || profile.country || prev.country,
+      city: appUser?.city || profile.company_name || prev.city,
+      interests: profileInterests.length ? profileInterests : prev.interests,
+      budgetMin: appUser?.budgetMin || profile.annual_profit || prev.budgetMin,
+      budgetMax: appUser?.budgetMax || profile.annual_revenue || prev.budgetMax,
+    }));
+  }, [appUser, profile]);
+
+  const cityOptions = useMemo(() => CITY_OPTIONS[formState.country] || [], [formState.country]);
+
+  const setField = (field, value) => {
     setFormState((prev) => ({ ...prev, [field]: value }));
     setFormMessage("");
     setErrors((prev) => {
@@ -251,27 +216,40 @@ export default function Onboarding({ language = "EN" }) {
     });
   };
 
+  const handleChange = (field) => (event) => {
+    setField(field, event.target.value);
+  };
+
   const handlePhoneNumber = (event) => {
     const next = event.target.value.replace(/\D/g, "");
-    setFormState((prev) => ({ ...prev, phoneNumber: next.slice(0, 12) }));
-    setFormMessage("");
-    setErrors((prev) => {
-      if (!prev.phoneNumber) return prev;
-      const updated = { ...prev };
-      delete updated.phoneNumber;
-      return updated;
+    setField("phoneNumber", next.slice(0, 12));
+  };
+
+  const toggleInterest = (interest) => {
+    setFormState((prev) => {
+      const selected = prev.interests.includes(interest);
+      return {
+        ...prev,
+        interests: selected
+          ? prev.interests.filter((item) => item !== interest)
+          : [...prev.interests, interest],
+      };
     });
   };
 
-  const setRole = (nextRole) => {
-    setFormState((prev) => ({ ...prev, role: nextRole }));
-    setFormMessage("");
-    setErrors((prev) => {
-      if (!prev.role) return prev;
-      const next = { ...prev };
-      delete next.role;
-      return next;
-    });
+  const addCustomInterest = () => {
+    const nextInterest = customInterest.trim();
+    if (!nextInterest) return;
+    if (formState.interests.some((item) => item.toLowerCase() === nextInterest.toLowerCase())) {
+      setCustomInterest("");
+      return;
+    }
+    setFormState((prev) => ({
+      ...prev,
+      interests: [...prev.interests, nextInterest],
+    }));
+    setCustomInterest("");
+    setShowCustomInterest(false);
   };
 
   const focusFirstError = (field) => {
@@ -287,19 +265,13 @@ export default function Onboarding({ language = "EN" }) {
   };
 
   const handleSubmit = async (event) => {
-    if (event?.preventDefault) {
-      event.preventDefault();
-    }
-    if (!user) return;
-    if (isSubmitting) return;
-    setFormMessage("");
-    setStatus({ type: "", message: "" });
-    const {
-      valid,
-      errors: nextErrors,
-      firstErrorField,
-    } = validateOnboarding(formState, language);
+    event.preventDefault();
+    if (!user || isSubmitting) return;
 
+    setStatus({ type: "", message: "" });
+    setFormMessage("");
+
+    const { valid, errors: nextErrors, firstErrorField } = validateOnboarding(formState, language);
     if (!valid) {
       setErrors(nextErrors);
       setFormMessage(text.validationMessage);
@@ -309,65 +281,138 @@ export default function Onboarding({ language = "EN" }) {
 
     setErrors({});
     setIsSubmitting(true);
-    try {
-      let avatarUrl = profile?.avatar_url || null;
-      if (avatarFile) {
-        const fileExt = avatarFile.name.split(".").pop();
-        const filePath = `${user.id}.${fileExt}`;
-        const { error: uploadError } = await supabase.storage
-          .from("avatars")
-          .upload(filePath, avatarFile, { upsert: true });
-        if (uploadError) {
-          console.error("[Onboarding save] Avatar upload error:", uploadError);
-          setStatus({
-            type: "error",
-            message: text.saveError,
-          });
-          return;
-        }
-        const { data } = supabase.storage.from("avatars").getPublicUrl(filePath);
-        avatarUrl = data.publicUrl;
-      }
 
-      const { error } = await supabase.from("profiles").upsert({
+    try {
+      const role = asText(formState.role) || "partner";
+      const firstName = asText(formState.firstName);
+      const lastName = asText(formState.lastName);
+      const country = asText(formState.country);
+      const city = asText(formState.city);
+      const phoneCountry = asText(formState.phoneCountry) || "+966";
+      const phoneNumber = asText(formState.phoneNumber).replace(/\D/g, "");
+      const budgetMin = shouldShowBudget(role) ? asText(formState.budgetMin) : "";
+      const budgetMax = shouldShowBudget(role) ? asText(formState.budgetMax) : "";
+      const interests = Array.isArray(formState.interests) ? formState.interests : [];
+
+      const existingUser = getUserById(user.id);
+      upsertUser({
+        ...existingUser,
         id: user.id,
         email: user.email,
-        first_name: formState.firstName,
-        last_name: formState.lastName,
-        company_name: formState.companyName || null,
-        country: formState.country,
-        phone: formState.phoneNumber
-          ? `${formState.phoneCountry}${formState.phoneNumber}`
-          : null,
-        role: formState.role,
-        how_heard: formState.howHeard || null,
-        business_url: formState.businessUrl || null,
-        business_category: formState.businessCategory || null,
-        annual_revenue: formState.annualRevenue || null,
-        annual_profit: formState.annualProfit || null,
-        businesses_owned: formState.businessesOwned || null,
-        terms_accepted: formState.termsAccepted || false,
-        terms_accepted_at: formState.termsAccepted
-          ? new Date().toISOString()
-          : profile?.terms_accepted_at || null,
-        terms_version: formState.termsAccepted ? "v1" : profile?.terms_version || null,
-        avatar_url: avatarUrl,
+        role: existingUser?.role || "user",
+        firstName,
+        lastName,
+        country,
+        city,
+        phoneCode: phoneCountry,
+        phoneNumber,
+        accountType: role,
+        interests,
+        budgetMin,
+        budgetMax,
+        onboardingCompleted: true,
       });
-      if (error) {
-        console.error("[Onboarding save] Profile save error:", error);
-        setStatus({
-          type: "error",
-          message: text.saveError,
-        });
-        return;
+
+      try {
+        const profilePayload = {
+          id: user.id,
+          email: user.email,
+          first_name: firstName,
+          last_name: lastName,
+          role,
+          country,
+          company_name: city,
+          phone: phoneNumber ? `${phoneCountry}${phoneNumber}` : null,
+          business_category: interests.join(", ") || null,
+          annual_profit: budgetMin || null,
+          annual_revenue: budgetMax || null,
+          onboarding_completed: true,
+          terms_accepted: true,
+          terms_accepted_at: profile?.terms_accepted_at || new Date().toISOString(),
+          terms_version: profile?.terms_version || "v1",
+          avatar_url: profile?.avatar_url || null,
+        };
+
+        const { error } = await supabase.from("profiles").upsert(profilePayload);
+        if (error) {
+          console.error("[Onboarding] Supabase profile save failed:", error, profilePayload);
+        }
+      } catch (backendError) {
+        console.error("[Onboarding] Unexpected save error:", backendError);
       }
-      await refreshProfile(user.id);
+
+      try {
+        await refreshProfile(user.id);
+      } catch (refreshError) {
+        console.error("[Onboarding] Profile refresh failed:", refreshError);
+      }
+
       setStatus({ type: "success", message: text.successMessage });
-      setTimeout(() => {
-        navigate("/onboarding/next", { replace: true });
-      }, 700);
-    } catch (err) {
-      console.error("[Onboarding save] Unexpected error:", err);
+      setTimeout(
+        () => navigate(getOnboardingDestination(role), { replace: true }),
+        550
+      );
+    } catch (submitError) {
+      console.error("[Onboarding] Save failed:", submitError);
+      setStatus({ type: "error", message: text.saveError });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSkip = async () => {
+    if (!user || isSubmitting) return;
+    setIsSubmitting(true);
+    setStatus({ type: "", message: "" });
+    try {
+      const role = asText(formState.role) || appUser?.accountType || "partner";
+      const existingUser = getUserById(user.id);
+      if (existingUser) {
+        setOnboardingCompleted(user.id, true, {
+          email: user.email,
+          firstName: existingUser.firstName || formState.firstName || "",
+          lastName: existingUser.lastName || formState.lastName || "",
+          accountType: asText(formState.role) || existingUser.accountType || role,
+          country: existingUser.country || formState.country || "",
+          city: existingUser.city || formState.city || "",
+        });
+      } else {
+        upsertUser({
+          id: user.id,
+          email: user.email,
+          role: "user",
+          accountType: role,
+          firstName: asText(formState.firstName),
+          lastName: asText(formState.lastName),
+          country: asText(formState.country),
+          city: asText(formState.city),
+          phoneCode: asText(formState.phoneCountry) || "+966",
+          phoneNumber: asText(formState.phoneNumber).replace(/\D/g, ""),
+          interests: formState.interests || [],
+          onboardingCompleted: true,
+        });
+      }
+
+      try {
+        await supabase.from("profiles").upsert({
+          id: user.id,
+          email: user.email,
+          role,
+          onboarding_completed: true,
+        });
+      } catch (backendError) {
+        console.error("[Onboarding] Skip sync failed:", backendError);
+      }
+
+      try {
+        await refreshProfile(user.id);
+      } catch (refreshError) {
+        console.error("[Onboarding] Skip profile refresh failed:", refreshError);
+      }
+
+      navigate(getOnboardingDestination(role), { replace: true });
+    } catch (error) {
+      console.error("[Onboarding] Skip failed:", error);
       setStatus({ type: "error", message: text.saveError });
     } finally {
       setIsSubmitting(false);
@@ -377,89 +422,42 @@ export default function Onboarding({ language = "EN" }) {
   if (!user) return null;
 
   return (
-    <div className="page">
+    <div className="page onboarding-modern-page">
       <section className="onboarding-section">
-        <div className="container onboarding-card">
-          <div className="onboarding-progress">
-            <div className="progress-meta">
-              <span className="progress-step">{text.progressStep}</span>
-              <span className="muted">{text.progressHelper}</span>
-            </div>
-            <div className="progress-bar">
-              <span style={{ width: "33%" }} />
-            </div>
-          </div>
-          <div className="onboarding-header">
+        <div className="container onboarding-card onboarding-modern-card">
+          <div className="onboarding-modern-head">
             <h2>{text.title}</h2>
-            <p className="muted">{text.subtitle}</p>
+            <p>{text.subtitle}</p>
           </div>
 
-          <form className="onboarding-form" onSubmit={handleSubmit}>
+          <form className="onboarding-form onboarding-modern-form" onSubmit={handleSubmit}>
             {formMessage ? (
               <div className="form-error-banner" role="alert">
                 {formMessage}
               </div>
             ) : null}
+
             <div className="field-group">
-              <label id="role-label">{text.role}</label>
-              <div
-                className="role-toggle"
-                role="radiogroup"
-                aria-labelledby="role-label"
-                aria-invalid={Boolean(errors.role)}
-                aria-describedby={errors.role ? "role-error" : undefined}
-              >
-                <button
-                  type="button"
-                  className={`role-card ${formState.role === "buyer" ? "active" : ""}`}
-                  role="radio"
-                  aria-checked={formState.role === "buyer"}
-                  data-field="role"
-                  tabIndex={formState.role === "buyer" || !formState.role ? 0 : -1}
-                  onClick={() => setRole("buyer")}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      setRole("buyer");
-                    }
-                    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-                      event.preventDefault();
-                      setRole("seller");
-                    }
-                  }}
-                >
-                  {text.buyer}
-                </button>
-                <button
-                  type="button"
-                  className={`role-card ${formState.role === "seller" ? "active" : ""}`}
-                  role="radio"
-                  aria-checked={formState.role === "seller"}
-                  data-field="role"
-                  tabIndex={formState.role === "seller" ? 0 : -1}
-                  onClick={() => setRole("seller")}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      setRole("seller");
-                    }
-                    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-                      event.preventDefault();
-                      setRole("buyer");
-                    }
-                  }}
-                >
-                  {text.seller}
-                </button>
+              <label>{text.role}</label>
+              <div className="onboarding-role-tabs" role="radiogroup" aria-invalid={Boolean(errors.role)}>
+                {ROLE_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={formState.role === option.value}
+                    className={`onboarding-role-tab${formState.role === option.value ? " active" : ""}`}
+                    data-field="role"
+                    onClick={() => setField("role", option.value)}
+                  >
+                    {option.label[language] || option.label.AR}
+                  </button>
+                ))}
               </div>
-              {errors.role ? (
-                <span className="field-error" id="role-error">
-                  {errors.role}
-                </span>
-              ) : null}
+              {errors.role ? <span className="field-error">{errors.role}</span> : null}
             </div>
 
-            <div className="field-grid">
+            <div className="field-grid onboarding-modern-grid">
               <div className="field-group">
                 <label htmlFor="firstName">{text.firstName}</label>
                 <input
@@ -468,16 +466,11 @@ export default function Onboarding({ language = "EN" }) {
                   value={formState.firstName}
                   onChange={handleChange("firstName")}
                   data-field="firstName"
-                  aria-invalid={Boolean(errors.firstName)}
-                  aria-describedby={errors.firstName ? "first-name-error" : undefined}
                   className={errors.firstName ? "input-error" : ""}
                 />
-                {errors.firstName ? (
-                  <span className="field-error" id="first-name-error">
-                    {errors.firstName}
-                  </span>
-                ) : null}
+                {errors.firstName ? <span className="field-error">{errors.firstName}</span> : null}
               </div>
+
               <div className="field-group">
                 <label htmlFor="lastName">{text.lastName}</label>
                 <input
@@ -486,50 +479,25 @@ export default function Onboarding({ language = "EN" }) {
                   value={formState.lastName}
                   onChange={handleChange("lastName")}
                   data-field="lastName"
-                  aria-invalid={Boolean(errors.lastName)}
-                  aria-describedby={errors.lastName ? "last-name-error" : undefined}
                   className={errors.lastName ? "input-error" : ""}
                 />
-                {errors.lastName ? (
-                  <span className="field-error" id="last-name-error">
-                    {errors.lastName}
-                  </span>
-                ) : null}
+                {errors.lastName ? <span className="field-error">{errors.lastName}</span> : null}
               </div>
             </div>
 
-            <div className="field-grid">
+            <div className="field-grid onboarding-modern-grid onboarding-modern-grid-3">
               <div className="field-group">
-                <label htmlFor="country">{text.country}</label>
-                <select
-                  id="country"
-                  value={formState.country}
-                  onChange={handleChange("country")}
-                  data-field="country"
-                  aria-invalid={Boolean(errors.country)}
-                  aria-describedby={errors.country ? "country-error" : undefined}
-                  className={errors.country ? "input-error" : ""}
-                >
-                  <option value="">
-                    {language === "AR" ? "اختر" : "Select"}
-                  </option>
-                  {COUNTRIES.map((country) => (
-                    <option key={country} value={country}>
-                      {country}
-                    </option>
-                  ))}
-                </select>
-                {errors.country ? (
-                  <span className="field-error" id="country-error">
-                    {errors.country}
-                  </span>
-                ) : null}
-              </div>
-              <div className="field-group">
-                <label htmlFor="phoneNumber">{text.phone}</label>
-                <div className="phone-input">
+                <label htmlFor="mobile">{text.phone}</label>
+                <div className="phone-control" data-field="phoneNumber">
+                  <input
+                    id="mobile"
+                    type="tel"
+                    inputMode="numeric"
+                    value={formState.phoneNumber}
+                    onChange={handlePhoneNumber}
+                    className={errors.phoneNumber ? "input-error" : ""}
+                  />
                   <select
-                    id="phoneCountry"
                     value={formState.phoneCountry}
                     onChange={handleChange("phoneCountry")}
                     aria-label={isArabic ? "مفتاح الدولة" : "Country code"}
@@ -540,221 +508,131 @@ export default function Onboarding({ language = "EN" }) {
                       </option>
                     ))}
                   </select>
-                  <input
-                    id="phoneNumber"
-                    type="tel"
-                    inputMode="numeric"
-                    value={formState.phoneNumber}
-                    onChange={handlePhoneNumber}
-                    placeholder={isArabic ? "رقم الجوال" : "Phone number"}
-                    data-field="phoneNumber"
-                    aria-invalid={Boolean(errors.phoneNumber)}
-                    aria-describedby={errors.phoneNumber ? "phone-error" : undefined}
-                    className={errors.phoneNumber ? "input-error" : ""}
-                  />
                 </div>
-                {errors.phoneNumber ? (
-                  <span className="field-error" id="phone-error">
-                    {errors.phoneNumber}
-                  </span>
-                ) : null}
+                {errors.phoneNumber ? <span className="field-error">{errors.phoneNumber}</span> : null}
+              </div>
+
+              <div className="field-group">
+                <label htmlFor="country">{text.country}</label>
+                <select
+                  id="country"
+                  value={formState.country}
+                  onChange={(event) => {
+                    setField("country", event.target.value);
+                    setField("city", "");
+                  }}
+                  data-field="country"
+                  className={errors.country ? "input-error" : ""}
+                >
+                  <option value="">{text.choose}</option>
+                  {COUNTRY_OPTIONS.map((country) => (
+                    <option key={country} value={country}>
+                      {country}
+                    </option>
+                  ))}
+                </select>
+                {errors.country ? <span className="field-error">{errors.country}</span> : null}
+              </div>
+
+              <div className="field-group">
+                <label htmlFor="city">{text.city}</label>
+                <select
+                  id="city"
+                  value={formState.city}
+                  onChange={handleChange("city")}
+                  data-field="city"
+                  className={errors.city ? "input-error" : ""}
+                >
+                  <option value="">{text.choose}</option>
+                  {cityOptions.map((city) => (
+                    <option key={city} value={city}>
+                      {city}
+                    </option>
+                  ))}
+                </select>
+                {errors.city ? <span className="field-error">{errors.city}</span> : null}
               </div>
             </div>
 
-            <details className="onboarding-optional">
-              <summary className="optional-summary">
-                <div className="optional-summary-text">
-                  <span>{text.optionalTitle}</span>
-                  <span className="muted">{text.optionalHelper}</span>
-                </div>
-              </summary>
-              <div className="optional-body">
-                <div className="field-grid">
-                  <div className="field-group">
-                    <label htmlFor="companyName">{text.company}</label>
-                    <input
-                      id="companyName"
-                      type="text"
-                      value={formState.companyName}
-                      onChange={handleChange("companyName")}
-                    />
-                  </div>
-                  <div className="field-group">
-                    <label htmlFor="avatarUpload">{text.avatar}</label>
-                    <div className="avatar-upload">
-                      <input
-                        id="avatarUpload"
-                        type="file"
-                        accept="image/*"
-                        onChange={(event) => {
-                          const file = event.target.files?.[0];
-                          if (!file) return;
-                          setAvatarFile(file);
-                          setAvatarPreview(URL.createObjectURL(file));
-                        }}
-                      />
-                      {avatarPreview ? (
-                        <img src={avatarPreview} alt="avatar preview" />
-                      ) : (
-                        <span className="muted">{text.chooseImage}</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="field-grid">
-                  <div className="field-group">
-                    <label htmlFor="howHeard">{text.howHeard}</label>
-                    <select
-                      id="howHeard"
-                      value={formState.howHeard}
-                      onChange={handleChange("howHeard")}
-                    >
-                      <option value="">
-                        {language === "AR" ? "اختر" : "Select"}
-                      </option>
-                      {HEAR_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label[language] || option.label.EN}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="field-group" />
-                </div>
-
-                {formState.role === "seller" ? (
-                  <>
-                    <div className="field-grid">
-                      <div className="field-group">
-                        <label htmlFor="businessUrl">{text.businessUrl}</label>
-                        <input
-                          id="businessUrl"
-                          type="text"
-                          value={formState.businessUrl}
-                          onChange={handleChange("businessUrl")}
-                          placeholder="e.g mywebsite.com"
-                        />
-                      </div>
-                      <div className="field-group">
-                        <label htmlFor="businessCategory">
-                          {text.businessCategory}
-                        </label>
-                        <select
-                          id="businessCategory"
-                          value={formState.businessCategory}
-                          onChange={handleChange("businessCategory")}
-                        >
-                          <option value="">
-                            {language === "AR" ? "اختر" : "Select"}
-                          </option>
-                          {BUSINESS_CATEGORIES.map((category) => (
-                            <option key={category.value} value={category.value}>
-                              {category.label[language] || category.label.EN}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="field-grid">
-                      <div className="field-group">
-                        <label htmlFor="annualRevenue">{text.annualRevenue}</label>
-                        <input
-                          id="annualRevenue"
-                          type="text"
-                          value={formState.annualRevenue}
-                          onChange={handleChange("annualRevenue")}
-                          placeholder="e.g 250,000"
-                        />
-                      </div>
-                      <div className="field-group">
-                        <label htmlFor="annualProfit">{text.annualProfit}</label>
-                        <input
-                          id="annualProfit"
-                          type="text"
-                          value={formState.annualProfit}
-                          onChange={handleChange("annualProfit")}
-                          placeholder="e.g 150,000"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="field-grid">
-                      <div className="field-group">
-                        <label htmlFor="businessesOwned">
-                          {text.businessesOwned}
-                        </label>
-                        <input
-                          id="businessesOwned"
-                          type="text"
-                          value={formState.businessesOwned}
-                          onChange={handleChange("businessesOwned")}
-                          placeholder="e.g 2"
-                        />
-                      </div>
-                      <div className="field-group" />
-                    </div>
-                  </>
-                ) : null}
-              </div>
-            </details>
-
             <div className="field-group">
-              <label className="checkbox-row">
-                <input
-                  id="termsAccepted"
-                  type="checkbox"
-                  checked={formState.termsAccepted}
-                  onChange={handleChange("termsAccepted")}
-                  data-field="termsAccepted"
-                  aria-invalid={Boolean(errors.termsAccepted)}
-                  aria-describedby={errors.termsAccepted ? "terms-error" : undefined}
-                  aria-labelledby="terms-label"
-                />
-                <span id="terms-label">
-                  {text.termsLabel}{" "}
-                  <button
-                    type="button"
-                    className="link-button"
-                    onClick={() => navigate("/terms")}
-                  >
-                    {text.termsTerms}
-                  </button>{" "}
-                  {text.termsAnd}{" "}
-                  <button
-                    type="button"
-                    className="link-button"
-                    onClick={() => navigate("/privacy")}
-                  >
-                    {text.termsPrivacy}
+              <label>{text.interests}</label>
+              <div className="onboarding-interest-chips">
+                {INTEREST_OPTIONS.map((interest) => {
+                  const selected = formState.interests.includes(interest);
+                  return (
+                    <button
+                      key={interest}
+                      type="button"
+                      className={`onboarding-interest-chip${selected ? " active" : ""}`}
+                      onClick={() => toggleInterest(interest)}
+                    >
+                      {interest}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  className="onboarding-interest-chip onboarding-interest-chip-add"
+                  onClick={() => setShowCustomInterest((prev) => !prev)}
+                >
+                  {text.addOther}
+                </button>
+              </div>
+              {showCustomInterest ? (
+                <div className="onboarding-custom-interest">
+                  <input
+                    type="text"
+                    value={customInterest}
+                    onChange={(event) => setCustomInterest(event.target.value)}
+                    placeholder={text.customInterestPlaceholder}
+                  />
+                  <button type="button" className="btn btn-ghost" onClick={addCustomInterest}>
+                    {text.add}
                   </button>
-                </span>
-              </label>
-              {errors.termsAccepted ? (
-                <span className="field-error" id="terms-error">
-                  {errors.termsAccepted}
-                </span>
+                </div>
               ) : null}
             </div>
 
+            {showBudgetFields ? (
+              <div className="field-group">
+                <label>{text.budget}</label>
+                <div className="onboarding-budget-grid">
+                  <input
+                    type="number"
+                    placeholder={text.budgetMin}
+                    value={formState.budgetMin}
+                    onChange={handleChange("budgetMin")}
+                    data-field="budgetMin"
+                    className={errors.budgetMin ? "input-error" : ""}
+                  />
+                  <input
+                    type="number"
+                    placeholder={text.budgetMax}
+                    value={formState.budgetMax}
+                    onChange={handleChange("budgetMax")}
+                    data-field="budgetMax"
+                    className={errors.budgetMax ? "input-error" : ""}
+                  />
+                </div>
+                {errors.budgetMax ? <span className="field-error">{errors.budgetMax}</span> : null}
+              </div>
+            ) : null}
+
             {status.message ? (
-              <div
-                className={`auth-status ${status.type}`}
-                role={status.type === "error" ? "alert" : "status"}
-              >
+              <div className={`auth-status ${status.type}`} role={status.type === "error" ? "alert" : "status"}>
                 {status.message}
               </div>
             ) : null}
 
-            <div className="onboarding-actions">
+            <div className="onboarding-modern-actions">
               <button className="btn btn-dark" type="submit" disabled={isSubmitting}>
                 {isSubmitting ? text.saving : text.submit}
               </button>
               <button
-                className="link-button onboarding-skip"
+                className="link-button onboarding-modern-skip"
                 type="button"
-                onClick={() => setShowSkipModal(true)}
+                onClick={handleSkip}
+                disabled={isSubmitting}
               >
                 {text.skip}
               </button>
@@ -762,33 +640,6 @@ export default function Onboarding({ language = "EN" }) {
           </form>
         </div>
       </section>
-      {showSkipModal ? (
-        <div className="modal-overlay" role="dialog" aria-modal="true">
-          <div className="modal-card onboarding-skip-modal">
-            <h3>{text.skipTitle}</h3>
-            <p className="muted">{text.skipBody}</p>
-            <div className="modal-actions">
-              <button
-                className="btn btn-ghost"
-                type="button"
-                onClick={() => setShowSkipModal(false)}
-              >
-                {text.skipCancel}
-              </button>
-              <button
-                className="btn btn-dark"
-                type="button"
-                onClick={() => {
-                  setShowSkipModal(false);
-                  handleSubmit();
-                }}
-              >
-                {text.skipConfirm}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }
