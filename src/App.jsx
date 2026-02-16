@@ -42,6 +42,8 @@ import AdminPayments from "./pages/AdminPayments";
 import { useAuth } from "./context/AuthContext";
 import { ADMIN_EMAIL } from "./services/usersService";
 
+const DEFAULT_LANDING_ROUTE = "/";
+
 export default function App() {
   const [language, setLanguage] = useState(() => {
     if (typeof window === "undefined") {
@@ -187,7 +189,7 @@ export default function App() {
               needsOnboarding ? (
                 <Navigate to="/onboarding" replace />
               ) : (
-                <Navigate to="/partner" replace />
+                <Navigate to={DEFAULT_LANDING_ROUTE} replace />
               )
             ) : (
               <Auth language={language} />
@@ -199,7 +201,7 @@ export default function App() {
           element={
             authenticated ? (
               onboardingCompleted ? (
-                <Navigate to="/partner" replace />
+                <Navigate to={DEFAULT_LANDING_ROUTE} replace />
               ) : (
                 <Onboarding language={language} />
               )

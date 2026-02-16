@@ -123,7 +123,7 @@ export default function Auth({ language = "EN" }) {
       if (!onboardingCompleted) {
         navigate("/onboarding", { replace: true });
       } else {
-        navigate("/partner", { replace: true });
+        navigate("/", { replace: true });
       }
     }
   }, [loading, navigate, onboardingCompleted, user]);
@@ -150,7 +150,7 @@ export default function Auth({ language = "EN" }) {
       if (activeMode === "login") {
         if (signInMock?.(formState.email, formState.password)) {
           setStatus({ type: "success", message: text.successLogin });
-          navigate("/partner", { replace: true });
+          navigate("/", { replace: true });
           return;
         }
         const { error } = await supabase.auth.signInWithPassword({
